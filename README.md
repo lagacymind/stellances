@@ -1,8 +1,8 @@
 <div align="center">
   <img src="docs/logo.png" alt="Stellance Logo" width="120" height="120" />
-  
+
   # Stellance
-  
+
   **A Stellar-powered freelance payment marketplace for instant escrow and on-chain payouts.**
 
   [![CI](https://github.com/alone-in/stellances/actions/workflows/ci.yml/badge.svg)](https://github.com/alone-in/stellances/actions/workflows/ci.yml)
@@ -13,142 +13,194 @@
 
 ## Why Stellance Exists
 
-The freelance economy is broken:
+The freelance economy has three problems that blockchain is actually suited to solve:
 
-- Experts wait days or weeks to get paid for work delivered immediately
-- Platforms take 20–30% commissions and lock up funds
-- Clients must pay before value is confirmed
-- Small jobs and milestones are inefficient and expensive
+- **Custody risk** — platforms hold client funds, creating a single point of failure and requiring trust in the intermediary.
+- **Settlement lag** — traditional payment rails (wire, ACH, PayPal) settle in 1–5 days, so freelancers wait days after work is approved.
+- **Cross-border cost** — international payments lose 3–8% to FX and remittance fees, disproportionately hurting freelancers in emerging markets.
 
-Stellance solves this by moving payments onto the Stellar network with trustless escrow and fast settlement.
+Stellance puts escrow logic on Soroban, Stellar's smart contract layer. Funds are held by code, not by Stellance. Payments settle in ~5 seconds. And because the payment rail is Stellar, a freelancer in Lagos and a client in Berlin share the same asset contract — no FX intermediary required.
 
-## What Makes Stellance Different
+---
 
-Stellance is built around instant, on-chain payment delivery rather than delayed invoicing.
+## Why Stellar Specifically
 
-### Core Principles
+> This section explains why Stellar is not interchangeable with Ethereum, Solana, or any other chain for this use case.
 
-- Pay only for completed work and approved milestones
-- Escrow funds until value is delivered
-- Keep fees low with Stellar transaction economics
-- Make blockchain seamless for users
+### 1. Built for payments, not computation
 
-### How It Works
+Stellar was designed from the ground up to move value, not to run general-purpose computation. That gives it properties no EVM chain has by default:
 
-1. **Connect**
-   - Freelancers and clients connect a Stellar wallet.
-2. **Create job/contract**
-   - Clients post jobs and hire freelancers with contract terms.
-3. **Fund escrow**
-   - Clients lock funds into an on-chain escrow flow.
-4. **Deliver work**
-   - Freelancers submit milestones or deliverables.
-5. **Release payment**
-   - Approved work triggers payment release to the freelancer.
+| Property | Stellar | Ethereum L1 | Solana |
+|----------|---------|------------|--------|
+| Finality | ~5 s | ~13 min (PoS) | ~0.4 s |
+| Tx fee | ~$0.00001 | $0.50–$50+ | ~$0.00025 |
+| Native multi-asset | Yes (SEP-4) | No (ERC-20 required) | No (SPL required) |
+| Anchor ecosystem | Yes (SEP-24/31) | No | No |
 
-## Why This Fits the Stellar Wave Program
+A freelance payment platform that charges users $5–$50 per release transaction is not a product. Stellar's fee model makes per-milestone payments — including small ones like a $20 milestone — economically rational.
 
-Stellance is a natural fit for Stellar Wave because it:
+### 2. Soroban for trustless escrow (not multisig)
 
-- Uses Stellar and Horizon for low-fee, instant payment rails
-- Implements escrow flows that map directly to real-world freelance payments
-- Aligns with trustless, open payment infrastructure
-- Demonstrates active work on frontend, backend, and blockchain integration
-- Is designed for contributor engagement and active project growth on Drips
+The naive approach to blockchain escrow is Stellar multisig: require N-of-M signers to move funds. This is simpler but keeps the platform as a custodian — if Stellance holds a signing key, Stellance can theoretically take the money.
 
-## Key Features
+Soroban contracts make the **rules code, not trust**. The Stellance escrow contract (`stellance/Contracts/src/lib.rs`) enforces:
 
-- Expert marketplace for freelance talent
-- On-chain escrow for secure contract payment
-- Fast settlement with XLM and Stellar assets
-- Testnet demo and contributor-focused onboarding
-- Open-source architecture for third-party integration
+- `fund()` — client locks tokens; the contract is the only custodian from this point
+- `release_milestone(amount)` — client (or admin) releases exactly one milestone's amount; cannot overdraw; emits an on-chain event
+- `release()` — full release of all remaining funds
+- `refund()` — freelancer (or admin) returns funds; client cannot self-refund
+- `dispute()` — either party freezes funds; blocks `release` and `refund` until resolved
+- `resolve_dispute(decision, bps)` — admin-only arbitration with atomic split (e.g. 60% freelancer / 40% refund)
+
+The split resolution is a concrete example of what Soroban enables that multisig doesn't: two transfers in a single transaction, enforced atomically by the VM, with no way for the platform to deviate. Ethereum could do this, but at 100× the cost.
+
+### 3. Stellar anchors for real-world on/off-ramps
+
+Stellar's [SEP-24](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0024.md) anchor ecosystem connects Stellar to local banking rails in 50+ countries. Anchors issue fiat-pegged tokens (USDC, NGN, PHP stablecoins) on Stellar and handle the local bank transfer for deposit and withdrawal.
+
+For a freelance platform this matters directly:
+
+- A client can deposit USD to fund a contract; the anchor converts it to USDC on Stellar.
+- The Stellance escrow contract holds USDC (same SEP-41 token interface as XLM).
+- When the milestone is released, the freelancer can withdraw to their local bank via the same anchor or a local one.
+
+This cross-border flow — client funds in USD → Stellar USDC → freelancer withdraws in PHP — is available today on Stellar. It doesn't exist natively on Ethereum L1 or Solana. An Ethereum-based escrow platform would need to integrate Stripe, Wise, or similar third-party payment processors for each corridor separately. Stellar handles this at the protocol level.
+
+### 4. SEP-41 token interface: asset-agnostic escrow
+
+The Stellance escrow contract accepts any Stellar asset that implements the SEP-41 token interface. This is not aspirational — it's built into the contract type system:
+
+```rust
+pub fn fund(
+    env: Env,
+    contract_id: Symbol,
+    client: Address,
+    freelancer: Address,
+    admin: Address,
+    amount: i128,
+    token: Address,   // ← any SEP-41 token: XLM, USDC, or any anchor-issued asset
+) -> Result<(), EscrowError>
+```
+
+The same contract handles XLM and USDC without modification. Token support is a configuration choice at the UX layer, not a contract change.
+
+### 5. Low fees enable milestone granularity that isn't economically viable elsewhere
+
+Ethereum's gas model creates a floor cost for on-chain actions. At $1+ per transaction, splitting a $500 contract into 10 milestones costs $10 in gas — 2% overhead before the platform takes anything.
+
+On Stellar, 10 milestone releases cost roughly $0.0001. This means Stellance can support fine-grained milestone tracking (hourly work logs, small deliverables, weekly check-ins) without forcing clients and freelancers to batch payments to amortize gas costs. The payment granularity can match the work structure, not the fee structure.
+
+### 6. On-chain events for verifiable payment history
+
+Every state transition in the Stellance escrow contract emits a Soroban event. Events are stored in Horizon and queryable without running a full node. This means:
+
+- Any payment record in the Stellance database has a corresponding immutable on-chain event.
+- Freelancers can independently verify their payment history on [stellar.expert](https://stellar.expert) without trusting Stellance's database.
+- Dispute evidence (when a dispute was raised, by whom) is tamper-proof.
+
+This is a specific Stellar/Soroban capability: Ethereum events are similar, but querying them requires an archive node or a paid third-party indexer. Horizon is a free, publicly hosted indexer provided by the Stellar Development Foundation.
+
+---
+
+## Current Implementation Status
+
+| Layer | What exists today | What's in active development |
+|-------|------------------|------------------------------|
+| **Soroban contract** | `fund`, `release_milestone`, `release`, `refund`, `dispute`, `resolve_dispute`, `get_escrow` — fully scaffolded with test suite | Testnet deployment, backend integration |
+| **Backend** | Auth (JWT + refresh token rotation), Users, Prisma schema with `stellarPublicKey`, `escrowTxHash`, `stellarTxHash` | Jobs, Contracts, Milestones, Payments, Escrow service (Stellar SDK) |
+| **Frontend** | Marketing landing page, live testnet demo (Friendbot + 1 XLM payment via Horizon) | Marketplace UI, Freighter wallet integration, contract invocation |
+| **CI** | Lint, test, WASM build | — |
+
+### What the demo proves today
+
+Visit `/demo`: generate a Stellar keypair, fund it via Friendbot, and submit a real XLM transaction on the Stellar testnet. This demonstrates that the payment rail works end-to-end — Horizon connectivity, transaction building, signing, and submission.
+
+### What the contract proves
+
+The Soroban contract (`stellance/Contracts/src/lib.rs`) implements the full escrow state machine with 20+ tests covering: partial milestone release, double-release prevention, dispute freezing, admin-only dispute resolution, atomic splits, and unauthorized-caller rejection. It compiles to WASM and is ready to deploy to testnet.
+
+---
+
+## How It Works
+
+1. **Connect** — Freelancers and clients connect a Stellar wallet (Freighter).
+2. **Create contract** — Clients post jobs and agree terms with freelancers.
+3. **Fund escrow** — Client calls `fund()` on the Soroban contract; tokens leave their wallet and enter the contract.
+4. **Deliver milestones** — Freelancer submits work; client reviews.
+5. **Release payment** — Client (or admin on dispute) calls `release_milestone()`; tokens transfer to the freelancer's Stellar address in the same transaction. Settlement in ~5 seconds.
+
+---
 
 ## Tech Stack
 
 ### Frontend
-- Next.js
-- React
-- Tailwind CSS
+- Next.js 16, React 19, Tailwind CSS 4
+- `stellar-sdk` 10.x for Horizon interaction and transaction building
+- Freighter wallet integration (in development)
 
 ### Backend
-- Node.js + NestJS
-- Prisma + PostgreSQL
+- Node.js + NestJS 11
+- Prisma 7 + PostgreSQL
+- `@stellar/stellar-sdk` for Horizon calls and Soroban transaction building (in development)
 
 ### Blockchain
-- Stellar network
-- Horizon API
-- Soroban smart contracts (in-repo: `stellance/Contracts/`)
+- Stellar network + Horizon API
+- Soroban smart contracts (`stellance/Contracts/`) — `soroban-sdk` 22.x
 
 ### Wallet
-- Stellar wallet integration (Freighter-ready)
+- Freighter browser extension for user-side transaction signing
+
+---
 
 ## Repository Structure
 
 ```
-stellances/                       # Root
+stellances/
 ├── stellance/
-│   ├── backend/                  # NestJS API (auth, jobs, contracts, payments)
-│   ├── frontend/                 # Next.js app (marketplace UI, Stellar demo)
-│   └── Contracts/                # Soroban smart contracts (Rust)
+│   ├── backend/          # NestJS API (auth, users; jobs/contracts/payments in dev)
+│   ├── frontend/         # Next.js app (landing page, testnet demo)
+│   └── Contracts/        # Soroban escrow contract (Rust, soroban-sdk 22.x)
 ├── .github/
-│   ├── workflows/ci.yml          # CI: lint · test · coverage · contract build
-│   ├── ISSUE_TEMPLATE/           # Contributor application templates
-│   └── pull_request_template.md  # PR checklist
-├── docs/                         # Project assets (logo)
-├── CHANGELOG.md                  # Version history
-├── CONTRIBUTING.md               # Architecture, data models, dev setup
-├── SECURITY.md                   # Vulnerability disclosure policy
-├── LICENSE                       # MIT
-└── README.md                     # Project overview
+│   ├── workflows/ci.yml  # CI: lint · test · WASM build
+│   └── ISSUE_TEMPLATE/   # Contributor application templates
+├── docs/
+│   ├── architecture.md   # Component map, layer breakdown, auth flow
+│   ├── escrow-flow.md    # State machines and sequence diagrams
+│   ├── api-reference.md  # API reference
+│   └── local-development.md
+├── CONTRIBUTING.md
+├── CHANGELOG.md
+└── README.md
 ```
 
-## Project Status
-
-Stellance is under active development.
-
-Current focus:
-
-- Frontend marketplace and demo pages
-- Stellar escrow and payment flow
-- Developer onboarding and contributor workflows
-- Project documentation for the Stellar Wave community
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [docs/architecture.md](docs/architecture.md) | Full system architecture — component map, layer breakdown, Soroban contract design, auth flow, key decisions |
-| [docs/escrow-flow.md](docs/escrow-flow.md) | Escrow, milestone and dispute flows with state machines and sequence diagrams |
-| [docs/api-reference.md](docs/api-reference.md) | Full API reference — request/response shapes, auth, error format |
-| [docs/local-development.md](docs/local-development.md) | Local setup guide (backend, frontend, contracts, common issues) |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Architecture overview, data models, user flows, how to pick and submit an issue |
+---
 
 ## Getting Started
 
-### Clone the repository
+### Clone
 
 ```bash
 git clone https://github.com/alone-in/stellances.git
 cd stellances
 ```
 
-See [docs/local-development.md](docs/local-development.md) for the full setup guide including PostgreSQL options, environment variables, contract builds, and common troubleshooting.
+See [docs/local-development.md](docs/local-development.md) for the full setup guide.
 
-### Backend setup (quick start)
+### Backend
 
 ```bash
 cd stellance/backend
 npm install
 cp .env.example .env
-# Edit .env — set DATABASE_URL and JWT_SECRET at minimum
+# Set DATABASE_URL and JWT_SECRET in .env
 npx prisma migrate dev
 npm run start:dev
 ```
 
-API runs at `http://localhost:3001/api` · Swagger docs at `http://localhost:3001/docs`
+API: `http://localhost:3001/api` · Swagger: `http://localhost:3001/docs`
 
-### Frontend setup
+### Frontend
 
 ```bash
 cd stellance/frontend
@@ -156,54 +208,75 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000` and visit `/demo` to try the Stellar testnet payment demo.
+Open `http://localhost:3000`. Visit `/demo` for the live Stellar testnet demo.
+
+### Soroban contract
+
+```bash
+cd stellance/Contracts
+cargo test                                              # run all tests
+cargo build --target wasm32-unknown-unknown --release  # build WASM
+```
+
+---
 
 ## Branching Strategy
 
-Use one branch per change.
+- `feat/` — new features
+- `fix/` — bug fixes
+- `refactor/` — code cleanup
+- `docs/` — documentation
 
-- `feat/` – new features
-- `fix/` – bug fixes
-- `refactor/` – code cleanup
-- `docs/` – documentation updates
+Examples: `feat/freighter-integration`, `fix/milestone-release`, `docs/anchor-guide`
 
-Examples:
+---
 
-- `feat/escrow-status`
-- `fix/wallet-connection`
-- `docs/add-demo-page`
+## Project Status
+
+Active development. Current focus:
+
+- Soroban escrow contract: scaffold complete, testnet deployment next
+- Backend: Jobs, Contracts, Milestones, and Escrow service modules
+- Frontend: Freighter wallet integration, marketplace UI
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/architecture.md](docs/architecture.md) | Full system architecture |
+| [docs/escrow-flow.md](docs/escrow-flow.md) | Escrow, milestone, and dispute state machines |
+| [docs/api-reference.md](docs/api-reference.md) | API reference |
+| [docs/local-development.md](docs/local-development.md) | Local setup guide |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+
+---
 
 ## Before Submitting a PR
 
 - Ensure the app builds without errors
+- Run `cargo test` in `Contracts/` if touching contract code
 - Verify no existing functionality is broken
 - Make UI changes responsive
-- Follow project conventions
 - Include a clear PR description
 
-## Communication
-
-If you have questions:
-
-- Open a GitHub issue
-- Use the contributor issue templates in `.github/ISSUE_TEMPLATE`
+---
 
 ## Code of Conduct
 
-We are inclusive, respectful, and constructive.
+Inclusive, respectful, and constructive.  No harassment. No gatekeeping. Focus on collaboration.
 
-- No harassment
-- No gatekeeping
-- Focus on collaboration
+---
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License. See [LICENSE](LICENSE).
 
 ## Security
 
-To report a vulnerability, see [SECURITY.md](SECURITY.md).
+See [SECURITY.md](SECURITY.md) for the vulnerability disclosure policy.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for a history of notable changes.
+See [CHANGELOG.md](CHANGELOG.md).
