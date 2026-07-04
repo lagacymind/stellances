@@ -2,44 +2,58 @@
 //!
 //! Soroban smart contract for trustless freelance payment escrow on Stellar.
 //!
-//! ## Purpose
+//! ## Architecture
 //!
-//! This contract holds client funds on-chain while a freelance contract is
-//! active. Funds can only leave the contract through one of three paths:
+//! One contract instance is deployed per Stellance environment (testnet / mainnet).
+//! Each freelance contract maps to a persistent [`EscrowEntry`] keyed by the
+//! off-chain `contract_id` (the PostgreSQL UUID stored in the backend).
 //!
-//! - **`release()`** — transfers funds to the freelancer (called when the
-//!   client approves delivered work)
-//! - **`refund()`** — returns funds to the client (called on mutual
-//!   cancellation, or by the platform admin after dispute resolution)
-//! - **`dispute()`** — freezes funds pending admin review
+//! ## Escrow state machine
 //!
-//! Neither party can move funds unilaterally. The contract is the only
-//! custodian.
+//! ```text
+//!  fund()          release() / refund()
+//!  ──────►  Funded ──────────────────► Released / Refunded
+//!                 ─── dispute() ──────► Disputed
+//!                                           │
+//!                          resolve_dispute() (admin only)
+//!                                           │
+//!                                    Released / Refunded (split)
+//! ```
 //!
-//! ## Current Status
+//! ## Why Soroban (not multisig)?
 //!
-//! This file contains a development scaffold that demonstrates the Soroban
-//! on-chain event publishing pattern. The full escrow interface (`fund`,
-//! `release`, `refund`, `dispute`) is under active development.
+//! A Stellar multisig escrow requires the platform to hold a signing key —
+//! making the platform a custodian. A Soroban contract makes the rules *code*:
+//! neither the client, the freelancer, nor the platform can move funds except
+//! through the defined paths below.
 //!
-//! See [`docs/escrow-flow.md`](../../docs/escrow-flow.md) for the complete
-//! specification of the escrow state machine and all transitions.
-//! See [`docs/architecture.md`](../../docs/architecture.md) for how this
-//! contract fits into the overall system.
+//! ## Per-milestone payments
 //!
-//! ## Deployment
+//! A single `EscrowEntry` holds the *total* contract amount. Each call to
+//! `release_milestone` atomically transfers one milestone's amount and records
+//! it in the released_amount accumulator so it cannot be double-released.
+//! The full `release` function releases all remaining funds in one call.
 //!
-//! The contract is compiled to WASM targeting `wasm32-unknown-unknown` and
-//! deployed to the Stellar testnet via the Stellar CLI. One contract instance
-//! handles all Stellance escrows; each freelance contract maps to a separate
-//! storage entry keyed by its off-chain UUID.
+//! ## Stellar-specific design choices
 //!
-//! Build:
+//! - Funds are held as a Stellar asset (XLM native or any SEP-41 token).
+//!   `token` is the contract address of the asset; for XLM use the
+//!   wrapped native XLM contract on testnet.
+//! - Fees are paid by the transaction submitter (client on `fund`, platform on
+//!   `release`/`refund`).  Stellar fees are ~0.00001 XLM — negligible.
+//! - All state transitions emit Soroban events so the backend can subscribe
+//!   via Horizon RPC event streaming rather than polling.
+//! - `resolve_dispute` supports a fractional split (basis points) enabling
+//!   partial refunds — not possible with a simple multisig approach.
+//!
+//! ## Build
+//!
 //! ```bash
 //! cargo build --target wasm32-unknown-unknown --release
 //! ```
 //!
-//! Deploy (once full escrow logic is implemented):
+//! ## Deploy to testnet
+//!
 //! ```bash
 //! stellar contract deploy \
 //!   --wasm target/wasm32-unknown-unknown/release/stellance_contract.wasm \
@@ -49,29 +63,501 @@
 
 #![no_std]
 
-use soroban_sdk::{contractimpl, symbol, Env, Symbol};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, token::TokenClient, Address, Env, Symbol,
+};
 
-/// Stellance escrow contract.
-///
-/// In the full implementation this will hold persistent [`EscrowEntry`]
-/// storage for each active freelance contract, keyed by the off-chain
-/// contract UUID.
-pub struct StellanceContract;
+// ---------------------------------------------------------------------------
+// Data types
+// ---------------------------------------------------------------------------
+
+/// Status of an escrow entry.
+#[contracttype]
+#[derive(Clone, PartialEq, Eq)]
+pub enum EscrowStatus {
+    /// Funds are locked — milestones can be released.
+    Funded,
+    /// All funds have been released to the freelancer.
+    Released,
+    /// All funds have been returned to the client.
+    Refunded,
+    /// Funds are frozen pending admin arbitration.
+    Disputed,
+}
+
+/// Persistent on-chain record for one freelance contract.
+#[contracttype]
+#[derive(Clone)]
+pub struct EscrowEntry {
+    /// Stellar address of the client who funded the escrow.
+    pub client: Address,
+    /// Stellar address of the freelancer who will receive payments.
+    pub freelancer: Address,
+    /// Total escrowed amount in the token's base unit (stroops for XLM).
+    pub total_amount: i128,
+    /// Amount already released to the freelancer via milestone releases.
+    pub released_amount: i128,
+    /// SEP-41 token contract address (use wrapped native XLM for XLM).
+    pub token: Address,
+    /// Current escrow state.
+    pub status: EscrowStatus,
+    /// Platform admin address — the only account allowed to call
+    /// `resolve_dispute` and to co-authorise `release`/`refund`.
+    pub admin: Address,
+}
+
+/// Decision options when an admin resolves a dispute.
+#[contracttype]
+#[derive(Clone, PartialEq, Eq)]
+pub enum DisputeDecision {
+    /// Transfer all remaining funds to the freelancer.
+    ReleaseToFreelancer,
+    /// Return all remaining funds to the client.
+    RefundToClient,
+    /// Split remaining funds; `freelancer_bps` basis points go to the
+    /// freelancer, the rest return to the client.
+    Split,
+}
+
+// ---------------------------------------------------------------------------
+// Error type
+// ---------------------------------------------------------------------------
+
+#[contracttype]
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum EscrowError {
+    /// No escrow entry found for the given contract_id.
+    NotFound = 1,
+    /// An escrow entry for this contract_id already exists.
+    AlreadyFunded = 2,
+    /// The escrow is not in the expected state for this operation.
+    InvalidState = 3,
+    /// The caller is not authorised to perform this operation.
+    Unauthorized = 4,
+    /// A split resolution must have freelancer_bps in [0, 10_000].
+    InvalidSplitBps = 5,
+    /// Arithmetic overflow — should not occur with normal amounts.
+    Overflow = 6,
+}
+
+// ---------------------------------------------------------------------------
+// Contract
+// ---------------------------------------------------------------------------
+
+#[contract]
+pub struct StellanceEscrow;
 
 #[contractimpl]
-impl StellanceContract {
-    /// Emit a ping event. Used in CI to verify the contract builds and
-    /// on-chain event publishing works end-to-end.
+impl StellanceEscrow {
+    // -----------------------------------------------------------------------
+    // fund — lock client funds into escrow
+    // -----------------------------------------------------------------------
+
+    /// Lock `amount` tokens from `client` into escrow for `contract_id`.
     ///
-    /// In the full escrow contract this will be replaced by `fund()`,
-    /// `release()`, `refund()`, and `dispute()`.
-    pub fn ping(env: Env) {
-        env.events().publish((symbol!("ping"),), ());
+    /// - Caller must be `client` (Soroban authorization enforced).
+    /// - `admin` is set at fund time and cannot be changed.
+    /// - Reverts if an escrow entry already exists for `contract_id`.
+    /// - The client must have previously approved this contract as a spender
+    ///   for at least `amount` tokens via the token's `approve()` function.
+    pub fn fund(
+        env: Env,
+        contract_id: Symbol,
+        client: Address,
+        freelancer: Address,
+        admin: Address,
+        amount: i128,
+        token: Address,
+    ) -> Result<(), EscrowError> {
+        // Require client signature — Soroban native auth enforcement
+        client.require_auth();
+
+        // Guard: no double-funding
+        if env.storage().persistent().has(&contract_id) {
+            return Err(EscrowError::AlreadyFunded);
+        }
+
+        // Pull tokens from client into this contract via transfer_from.
+        // The client must have called token.approve(escrow_contract, amount, expiry) first.
+        TokenClient::new(&env, &token).transfer_from(
+            &env.current_contract_address(), // spender = this contract
+            &client,                          // from
+            &env.current_contract_address(), // to = this contract
+            &amount,
+        );
+
+        let entry = EscrowEntry {
+            client: client.clone(),
+            freelancer: freelancer.clone(),
+            total_amount: amount,
+            released_amount: 0,
+            token: token.clone(),
+            status: EscrowStatus::Funded,
+            admin: admin.clone(),
+        };
+
+        env.storage().persistent().set(&contract_id, &entry);
+
+        // Emit event for backend Horizon RPC streaming
+        env.events().publish(
+            (Symbol::new(&env, "fund"), contract_id),
+            (client, freelancer, amount, token),
+        );
+
+        Ok(())
     }
 
-    /// Return a greeting symbol. Placeholder for testing contract invocation
-    /// from the backend and the Stellar testnet demo.
-    pub fn get_greeting(_env: Env) -> Symbol {
-        symbol!("Hello from Stellance!")
+    // -----------------------------------------------------------------------
+    // release_milestone — partial release for a single approved milestone
+    // -----------------------------------------------------------------------
+
+    /// Release `milestone_amount` to the freelancer for one approved milestone.
+    ///
+    /// - Must be called by `client` or `admin`.
+    /// - Escrow must be in `Funded` state.
+    /// - `milestone_amount` must not exceed the remaining unreleased amount.
+    /// - When the last token is released the entry transitions to `Released`.
+    pub fn release_milestone(
+        env: Env,
+        contract_id: Symbol,
+        caller: Address,
+        milestone_amount: i128,
+    ) -> Result<(), EscrowError> {
+        caller.require_auth();
+
+        let mut entry: EscrowEntry = env
+            .storage()
+            .persistent()
+            .get(&contract_id)
+            .ok_or(EscrowError::NotFound)?;
+
+        // Only funded escrows can release
+        if entry.status != EscrowStatus::Funded {
+            return Err(EscrowError::InvalidState);
+        }
+
+        // Only the client or the admin can release funds
+        if caller != entry.client && caller != entry.admin {
+            return Err(EscrowError::Unauthorized);
+        }
+
+        let remaining = entry
+            .total_amount
+            .checked_sub(entry.released_amount)
+            .ok_or(EscrowError::Overflow)?;
+
+        if milestone_amount <= 0 || milestone_amount > remaining {
+            return Err(EscrowError::InvalidState);
+        }
+
+        // Transfer milestone amount to freelancer
+        TokenClient::new(&env, &entry.token).transfer(
+            &env.current_contract_address(),
+            &entry.freelancer,
+            &milestone_amount,
+        );
+
+        entry.released_amount = entry
+            .released_amount
+            .checked_add(milestone_amount)
+            .ok_or(EscrowError::Overflow)?;
+
+        // If everything has been paid out, mark as fully released
+        if entry.released_amount >= entry.total_amount {
+            entry.status = EscrowStatus::Released;
+        }
+
+        env.storage().persistent().set(&contract_id, &entry);
+
+        env.events().publish(
+            (Symbol::new(&env, "release_ms"), contract_id),
+            (entry.freelancer.clone(), milestone_amount, entry.released_amount),
+        );
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // release — release ALL remaining escrowed funds to the freelancer
+    // -----------------------------------------------------------------------
+
+    /// Release the full remaining balance to the freelancer.
+    ///
+    /// Use `release_milestone` for per-milestone payments. This is a
+    /// convenience for single-payment contracts or final settlement.
+    pub fn release(
+        env: Env,
+        contract_id: Symbol,
+        caller: Address,
+    ) -> Result<(), EscrowError> {
+        caller.require_auth();
+
+        let mut entry: EscrowEntry = env
+            .storage()
+            .persistent()
+            .get(&contract_id)
+            .ok_or(EscrowError::NotFound)?;
+
+        if entry.status != EscrowStatus::Funded {
+            return Err(EscrowError::InvalidState);
+        }
+
+        if caller != entry.client && caller != entry.admin {
+            return Err(EscrowError::Unauthorized);
+        }
+
+        let remaining = entry
+            .total_amount
+            .checked_sub(entry.released_amount)
+            .ok_or(EscrowError::Overflow)?;
+
+        if remaining > 0 {
+            TokenClient::new(&env, &entry.token).transfer(
+                &env.current_contract_address(),
+                &entry.freelancer,
+                &remaining,
+            );
+        }
+
+        entry.released_amount = entry.total_amount;
+        entry.status = EscrowStatus::Released;
+        env.storage().persistent().set(&contract_id, &entry);
+
+        env.events().publish(
+            (Symbol::new(&env, "release"), contract_id),
+            (entry.freelancer.clone(), remaining),
+        );
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // refund — return all funds to the client
+    // -----------------------------------------------------------------------
+
+    /// Return all escrowed funds to the client.
+    ///
+    /// - Must be called by `freelancer` or `admin`.
+    /// - Escrow must be in `Funded` state.
+    ///   An admin can refund a `Disputed` escrow via `resolve_dispute`.
+    pub fn refund(
+        env: Env,
+        contract_id: Symbol,
+        caller: Address,
+    ) -> Result<(), EscrowError> {
+        caller.require_auth();
+
+        let mut entry: EscrowEntry = env
+            .storage()
+            .persistent()
+            .get(&contract_id)
+            .ok_or(EscrowError::NotFound)?;
+
+        if entry.status != EscrowStatus::Funded {
+            return Err(EscrowError::InvalidState);
+        }
+
+        if caller != entry.freelancer && caller != entry.admin {
+            return Err(EscrowError::Unauthorized);
+        }
+
+        let remaining = entry
+            .total_amount
+            .checked_sub(entry.released_amount)
+            .ok_or(EscrowError::Overflow)?;
+
+        if remaining > 0 {
+            TokenClient::new(&env, &entry.token).transfer(
+                &env.current_contract_address(),
+                &entry.client,
+                &remaining,
+            );
+        }
+
+        entry.status = EscrowStatus::Refunded;
+        env.storage().persistent().set(&contract_id, &entry);
+
+        env.events().publish(
+            (Symbol::new(&env, "refund"), contract_id),
+            (entry.client.clone(), remaining),
+        );
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // dispute — freeze funds pending admin review
+    // -----------------------------------------------------------------------
+
+    /// Mark the escrow as disputed, freezing all fund movements.
+    ///
+    /// - Must be called by `client` or `freelancer`.
+    /// - Escrow must be in `Funded` state.
+    /// - After this call only `resolve_dispute` (admin-only) can move funds.
+    pub fn dispute(
+        env: Env,
+        contract_id: Symbol,
+        caller: Address,
+    ) -> Result<(), EscrowError> {
+        caller.require_auth();
+
+        let mut entry: EscrowEntry = env
+            .storage()
+            .persistent()
+            .get(&contract_id)
+            .ok_or(EscrowError::NotFound)?;
+
+        if entry.status != EscrowStatus::Funded {
+            return Err(EscrowError::InvalidState);
+        }
+
+        if caller != entry.client && caller != entry.freelancer {
+            return Err(EscrowError::Unauthorized);
+        }
+
+        entry.status = EscrowStatus::Disputed;
+        env.storage().persistent().set(&contract_id, &entry);
+
+        env.events().publish(
+            (Symbol::new(&env, "dispute"), contract_id),
+            (caller,),
+        );
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve_dispute — admin-only arbitration with optional split
+    // -----------------------------------------------------------------------
+
+    /// Resolve a disputed escrow.
+    ///
+    /// Only the `admin` address set at `fund` time can call this.
+    ///
+    /// `decision`:
+    /// - `ReleaseToFreelancer` — 100% to freelancer
+    /// - `RefundToClient`      — 100% to client
+    /// - `Split`               — `freelancer_bps` basis points (0–10_000) to
+    ///                           freelancer, remainder to client.
+    ///
+    /// Both transfers in a `Split` happen in the same Soroban invocation,
+    /// making the split **atomic** — enforced by the VM, not by trust.
+    /// This is a concrete capability that Stellar multisig cannot provide.
+    pub fn resolve_dispute(
+        env: Env,
+        contract_id: Symbol,
+        caller: Address,
+        decision: DisputeDecision,
+        freelancer_bps: u32, // ignored unless decision == Split
+    ) -> Result<(), EscrowError> {
+        caller.require_auth();
+
+        let mut entry: EscrowEntry = env
+            .storage()
+            .persistent()
+            .get(&contract_id)
+            .ok_or(EscrowError::NotFound)?;
+
+        if entry.status != EscrowStatus::Disputed {
+            return Err(EscrowError::InvalidState);
+        }
+
+        if caller != entry.admin {
+            return Err(EscrowError::Unauthorized);
+        }
+
+        let remaining = entry
+            .total_amount
+            .checked_sub(entry.released_amount)
+            .ok_or(EscrowError::Overflow)?;
+
+        let token_client = TokenClient::new(&env, &entry.token);
+
+        match decision {
+            DisputeDecision::ReleaseToFreelancer => {
+                if remaining > 0 {
+                    token_client.transfer(
+                        &env.current_contract_address(),
+                        &entry.freelancer,
+                        &remaining,
+                    );
+                }
+                entry.status = EscrowStatus::Released;
+            }
+            DisputeDecision::RefundToClient => {
+                if remaining > 0 {
+                    token_client.transfer(
+                        &env.current_contract_address(),
+                        &entry.client,
+                        &remaining,
+                    );
+                }
+                entry.status = EscrowStatus::Refunded;
+            }
+            DisputeDecision::Split => {
+                if freelancer_bps > 10_000 {
+                    return Err(EscrowError::InvalidSplitBps);
+                }
+
+                // Integer arithmetic: (remaining * bps) / 10_000
+                let freelancer_amount = remaining
+                    .checked_mul(i128::from(freelancer_bps))
+                    .ok_or(EscrowError::Overflow)?
+                    / 10_000_i128;
+                let client_amount = remaining
+                    .checked_sub(freelancer_amount)
+                    .ok_or(EscrowError::Overflow)?;
+
+                // Both transfers in the same Soroban invocation — atomic.
+                if freelancer_amount > 0 {
+                    token_client.transfer(
+                        &env.current_contract_address(),
+                        &entry.freelancer,
+                        &freelancer_amount,
+                    );
+                }
+                if client_amount > 0 {
+                    token_client.transfer(
+                        &env.current_contract_address(),
+                        &entry.client,
+                        &client_amount,
+                    );
+                }
+                entry.status = EscrowStatus::Released;
+            }
+        }
+
+        env.storage().persistent().set(&contract_id, &entry);
+
+        env.events().publish(
+            (Symbol::new(&env, "resolve"), contract_id),
+            (decision, freelancer_bps),
+        );
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // get_escrow — read-only view (no auth required)
+    // -----------------------------------------------------------------------
+
+    /// Return the current state of an escrow entry.
+    ///
+    /// Returns `None` if no entry exists for `contract_id`.
+    /// The backend and frontend can call this to verify on-chain state
+    /// without relying solely on their own database records.
+    pub fn get_escrow(env: Env, contract_id: Symbol) -> Option<EscrowEntry> {
+        env.storage().persistent().get(&contract_id)
+    }
+
+    // -----------------------------------------------------------------------
+    // ping — CI smoke test
+    // -----------------------------------------------------------------------
+
+    /// Emit a ping event. Used in CI to verify the contract builds and
+    /// on-chain event publishing works end-to-end.
+    pub fn ping(env: Env) {
+        env.events()
+            .publish((Symbol::new(&env, "ping"),), ());
     }
 }
