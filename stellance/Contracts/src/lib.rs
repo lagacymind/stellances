@@ -123,7 +123,7 @@ pub enum DisputeDecision {
 // Error type
 // ---------------------------------------------------------------------------
 
-#[contracttype]
+#[contracterror]
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum EscrowError {
     /// No escrow entry found for the given contract_id.
