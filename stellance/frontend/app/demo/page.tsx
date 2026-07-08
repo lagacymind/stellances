@@ -29,7 +29,7 @@ export default function DemoPage() {
       } else {
         setStatus(`Friendbot error: ${JSON.stringify(body)}`);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus(String(err));
     }
   }
@@ -67,7 +67,7 @@ export default function DemoPage() {
       const res = await server.submitTransaction(tx);
       setTxHash(res.hash);
       setStatus("Payment submitted — transaction confirmed on testnet.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus(String(err));
     }
   }

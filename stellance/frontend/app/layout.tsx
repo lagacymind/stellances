@@ -4,7 +4,6 @@ import { Toaster } from "sonner";
 import QueryProvider from "./providers/QueryProvider";
 import "./globals.css";
 
-// ─── Fonts ────────────────────────────────────────────────────────────────────
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",

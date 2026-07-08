@@ -147,7 +147,7 @@ export default function Home() {
               { n: "02", heading: "The platform\ntakes its cut.", body: "20–30% gone before you see a dollar. Every transaction, every time." },
               { n: "03", heading: "No guarantee\nfor either side.", body: "Clients pay blind. Freelancers deliver blind. Someone always takes on the risk." },
               { n: "04", heading: "Milestones\ndon't scale.", body: "Splitting a project into smaller payments is slow, expensive, and easy to dispute." },
-            ].map((item, i) => (
+            ].map((item) => (
               <div
                 key={item.n}
                 style={{ padding: "2rem 1.5rem sm:2.5rem sm:2rem", borderBottom: "1px solid #152D4E" }}
@@ -231,13 +231,13 @@ export default function Home() {
           <div className="grid lg:grid-cols-[3fr_2fr] gap-10 lg:gap-16 items-start">
             <div>
               <h2 style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "clamp(1.6rem, 3vw, 2.5rem)", fontWeight: 700, color: "#fff", letterSpacing: "-0.03em", lineHeight: 1.15, marginBottom: "1.25rem" }}>
-                Payment rails that work without you knowing they're there.
+                Payment rails that work without you knowing they&apos;re there.
               </h2>
               <p style={{ fontSize: "0.95rem", lineHeight: 1.75, color: "#7A9BBE", marginBottom: "1rem" }}>
                 Stellar is a public payment network optimized for fast, low-cost transfers. Transactions finalize in 3–5 seconds and cost less than a fraction of a cent — which means milestone payments that would be impractical on Ethereum become trivial here.
               </p>
               <p style={{ fontSize: "0.95rem", lineHeight: 1.75, color: "#7A9BBE" }}>
-                We use Stellar's built-in account mechanics and the Horizon API for escrow. Soroban smart contracts are next on the roadmap for more complex dispute logic and automated validation.
+                We use Stellar&apos;s built-in account mechanics and the Horizon API for live demos. The Soroban escrow contract — covering fund, milestone release, refund, dispute, and atomic dispute resolution — is complete, test-covered, and compiles to WASM. Backend and frontend integration are in active development.
               </p>
             </div>
             {/* Stats: borderTop on mobile, borderLeft on lg */}
@@ -245,11 +245,11 @@ export default function Home() {
               {[
                 { stat: "3–5s", label: "Transaction finality" },
                 { stat: "< $0.01", label: "Per transaction fee" },
-                { stat: "Trustless", label: "Escrow via Horizon" },
-                { stat: "Soroban", label: "Smart contracts (roadmap)" },
+                { stat: "Trustless", label: "Soroban escrow contract" },
+                { stat: "Soroban", label: "Escrow smart contract" },
               ].map((item, i) => (
                 <div key={item.label} className={i > 0 ? "pt-5 mt-5 border-t border-[#152D4E] lg:border-t lg:mt-5" : ""}>
-                  <p style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "1.6rem", fontWeight: 700, color: i === 3 ? "#6B8BAD" : "#5EE7FF", letterSpacing: "-0.03em", lineHeight: 1, marginBottom: "0.25rem" }}>
+                  <p style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "1.6rem", fontWeight: 700, color: "#5EE7FF", letterSpacing: "-0.03em", lineHeight: 1, marginBottom: "0.25rem" }}>
                     {item.stat}
                   </p>
                   <p style={{ fontSize: "0.8rem", color: "#4A6B8A" }}>{item.label}</p>
@@ -291,7 +291,7 @@ export default function Home() {
                 ["backend ", "nestjs  prisma  postgresql"],
                 ["network ", "stellar  horizon api  stellar-sdk"],
                 ["wallet  ", "freighter (browser extension)"],
-                ["contracts", "soroban (planned)  rust"],
+                ["contracts", "soroban  rust  wasm"],
               ].map(([layer, tech]) => (
                 <div key={layer} style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
                   <span style={{ color: "#3DA9FC", minWidth: "5rem", flexShrink: 0 }}>{layer}</span>

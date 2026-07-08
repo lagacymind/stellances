@@ -26,7 +26,8 @@ export class AuthService {
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findOneByEmail(email);
     if (user && (await argon2.verify(user.password, pass))) {
-      const { password, ...result } = user;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password: _, ...result } = user;
       return result;
     }
     return null;
@@ -58,7 +59,10 @@ export class AuthService {
     return crypto.randomBytes(48).toString('base64url');
   }
 
-  async login(user: any, meta?: { ip?: string; userAgent?: string }) {
+  async login(
+    user: { id: string; email: string; role: string; tokenVersion: number },
+    meta?: { ip?: string; userAgent?: string },
+  ) {
     const payload = {
       email: user.email,
       sub: user.id,
@@ -211,7 +215,10 @@ export class AuthService {
     });
   }
 
-  async register(registerDto: RegisterDto, meta?: { ip?: string; userAgent?: string }) {
+  async register(
+    registerDto: RegisterDto,
+    meta?: { ip?: string; userAgent?: string },
+  ) {
     const existingUser = await this.usersService.findOneByEmail(
       registerDto.email,
     );
@@ -228,7 +235,8 @@ export class AuthService {
       role: registerDto.role ?? UserRole.CLIENT,
     });
 
-    const { password, ...result } = user;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _, ...result } = user;
     const { access_token, refresh_token } = await this.login(user, meta);
     return { user: result, access_token, refresh_token };
   }

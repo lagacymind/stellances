@@ -1,3 +1,6 @@
 [toolchain]
-channel = "stable"
+# 1.88.0: minimum version satisfying all transitive deps (darling 0.23+,
+# serde_with 3.21+ require 1.88). The soroban-env-host 21.2.1 testutils.rs
+# ChaCha20Rng: CryptoRng deref-coercion issue does not manifest on 1.88.0.
+channel = "1.88.0"
 components = ["rust-src"]

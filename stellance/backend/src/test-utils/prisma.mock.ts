@@ -27,6 +27,31 @@ type RefreshTokenRecord = {
   updatedAt: Date;
 };
 
+type UserCreateData = {
+  email: string;
+  name: string;
+  password: string;
+  role: 'CLIENT' | 'FREELANCER' | 'ADMIN';
+};
+
+type RefreshTokenCreateData = {
+  token: string;
+  userId: string;
+  tokenVersion: number;
+  expiresAt: Date;
+  revoked?: boolean;
+  revokedAt?: Date | null;
+  replacedByTokenId?: string | null;
+  userAgent?: string | null;
+  ip?: string | null;
+};
+
+type RefreshTokenUpdateData = {
+  revoked?: boolean;
+  revokedAt?: Date | null;
+  replacedByTokenId?: string | null;
+};
+
 function cloneMap<V>(map: Map<string, V>): Map<string, V> {
   return new Map(map);
 }
@@ -45,13 +70,17 @@ export class PrismaServiceMock {
   }
 
   user = {
-    findUnique: async (args: { where: { id?: string; email?: string } }) => {
-      if (args.where.id) return this.usersById.get(args.where.id) ?? null;
-      if (args.where.email) return this.usersByEmail.get(args.where.email) ?? null;
-      return null;
+    findUnique: (args: {
+      where: { id?: string; email?: string };
+    }): Promise<UserRecord | null> => {
+      if (args.where.id)
+        return Promise.resolve(this.usersById.get(args.where.id) ?? null);
+      if (args.where.email)
+        return Promise.resolve(this.usersByEmail.get(args.where.email) ?? null);
+      return Promise.resolve(null);
     },
 
-    create: async (args: { data: { email: string; name: string; password: string; role: any } }) => {
+    create: (args: { data: UserCreateData }): Promise<UserRecord> => {
       const now = new Date();
       const id = crypto.randomUUID();
       const record: UserRecord = {
@@ -67,15 +96,18 @@ export class PrismaServiceMock {
       };
       this.usersById.set(record.id, record);
       this.usersByEmail.set(record.email, record);
-      return record;
+      return Promise.resolve(record);
     },
 
-    update: async (args: { where: { id: string }; data: any }) => {
+    update: (args: {
+      where: { id: string };
+      data: { tokenVersion?: { increment: number } };
+    }): Promise<UserRecord> => {
       const existing = this.usersById.get(args.where.id);
-      if (!existing) throw new Error('User not found');
+      if (!existing) return Promise.reject(new Error('User not found'));
       const now = new Date();
 
-      const tokenVersionIncrement = args.data?.tokenVersion?.increment;
+      const tokenVersionIncrement = args.data.tokenVersion?.increment;
       const updated: UserRecord = {
         ...existing,
         tokenVersion:
@@ -87,12 +119,14 @@ export class PrismaServiceMock {
 
       this.usersById.set(updated.id, updated);
       this.usersByEmail.set(updated.email, updated);
-      return updated;
+      return Promise.resolve(updated);
     },
   };
 
   refreshToken = {
-    create: async (args: { data: any }) => {
+    create: (args: {
+      data: RefreshTokenCreateData;
+    }): Promise<RefreshTokenRecord> => {
       const now = new Date();
       const id = crypto.randomUUID();
       const record: RefreshTokenRecord = {
@@ -110,39 +144,64 @@ export class PrismaServiceMock {
         updatedAt: now,
       };
       if (this.refreshTokensByHash.has(record.token)) {
-        throw new Error('Unique constraint failed on RefreshToken.token');
+        return Promise.reject(
+          new Error('Unique constraint failed on RefreshToken.token'),
+        );
       }
       this.refreshTokensById.set(record.id, record);
       this.refreshTokensByHash.set(record.token, record);
-      return record;
+      return Promise.resolve(record);
     },
 
-    findUnique: async (args: { where: { token: string }; include?: { user?: boolean } }) => {
+    findUnique: (args: {
+      where: { token: string };
+      include?: { user?: boolean };
+    }): Promise<(RefreshTokenRecord & { user?: UserRecord }) | null> => {
       const record = this.refreshTokensByHash.get(args.where.token) ?? null;
-      if (!record) return null;
+      if (!record) return Promise.resolve(null);
       if (args.include?.user) {
         const user = this.usersById.get(record.userId);
-        if (!user) throw new Error('RefreshToken.user not found');
-        return { ...record, user };
+        if (!user)
+          return Promise.reject(new Error('RefreshToken.user not found'));
+        return Promise.resolve({ ...record, user });
       }
-      return record;
+      return Promise.resolve(record);
     },
 
-    updateMany: async (args: { where: any; data: any }) => {
+    updateMany: (args: {
+      where: {
+        id?: string;
+        userId?: string;
+        token?: string;
+        revoked?: boolean;
+      };
+      data: RefreshTokenUpdateData;
+    }): Promise<{ count: number }> => {
       let count = 0;
       const now = new Date();
 
       for (const [id, record] of this.refreshTokensById.entries()) {
-        if (args.where?.id && record.id !== args.where.id) continue;
-        if (args.where?.userId && record.userId !== args.where.userId) continue;
-        if (args.where?.token && record.token !== args.where.token) continue;
-        if (typeof args.where?.revoked === 'boolean' && record.revoked !== args.where.revoked) continue;
+        if (args.where.id !== undefined && record.id !== args.where.id)
+          continue;
+        if (
+          args.where.userId !== undefined &&
+          record.userId !== args.where.userId
+        )
+          continue;
+        if (args.where.token !== undefined && record.token !== args.where.token)
+          continue;
+        if (
+          typeof args.where.revoked === 'boolean' &&
+          record.revoked !== args.where.revoked
+        )
+          continue;
 
         const updated: RefreshTokenRecord = {
           ...record,
           revoked: args.data.revoked ?? record.revoked,
           revokedAt: args.data.revokedAt ?? record.revokedAt,
-          replacedByTokenId: args.data.replacedByTokenId ?? record.replacedByTokenId,
+          replacedByTokenId:
+            args.data.replacedByTokenId ?? record.replacedByTokenId,
           updatedAt: now,
         };
 
@@ -151,7 +210,7 @@ export class PrismaServiceMock {
         count += 1;
       }
 
-      return { count };
+      return Promise.resolve({ count });
     },
   };
 
@@ -179,4 +238,3 @@ export class PrismaServiceMock {
     };
   }
 }
-

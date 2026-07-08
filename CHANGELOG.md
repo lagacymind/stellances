@@ -12,6 +12,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `stellance/frontend/.env.local.example` — environment template; contributors now run `cp .env.local.example .env.local` instead of creating the file manually
 - `PATCH /users/me` documented in `docs/api-reference.md` as a planned endpoint (needed to save Stellar public key after wallet connection)
 - Freighter wallet setup guide added to `docs/local-development.md` (step 6)
+- `@ApiProperty` / `@ApiPropertyOptional` decorators added to `RegisterDto` and `LoginDto` — Swagger UI at `/docs` now renders fully populated request body schemas with examples
+- `src/users/users.controller.spec.ts` — unit test suite for `GET /users/me` covering: happy path (returns profile without password), missing `req.user`, missing `req.user.id`, user not found in DB, and password-omission guarantee
+
+### Changed
+- Landing page `Why Stellar` section updated: "Soroban smart contracts are next on the roadmap" replaced with accurate status — contract is complete, test-covered, and compiles to WASM; integration is in progress
+- Landing page stack block: `"soroban (planned)"` → `"soroban  rust  wasm"`
+- Landing page stats block: `"Smart contracts (roadmap)"` → `"Escrow smart contract"`; `"Escrow via Horizon"` → `"Soroban escrow contract"`; Soroban stat now rendered in active colour (was greyed-out)
 
 ### Fixed
 - `CONTRIBUTING.md` — response format examples corrected from `{success:true, data:{...}}` to the actual flat format (`{message, access_token, user}`)
