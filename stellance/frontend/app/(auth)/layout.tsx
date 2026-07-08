@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: {
@@ -29,12 +30,12 @@ export default function AuthLayout({
       </div>
 
       {/* Stellance wordmark */}
-      <a
+      <Link
         href="/"
         className="relative mb-8 flex items-center gap-2 text-xl font-semibold tracking-tight text-white font-heading"
       >
         <span className="gradient-text">Stellance</span>
-      </a>
+      </Link>
 
       <main className="relative w-full max-w-md">{children}</main>
 
