@@ -65,8 +65,7 @@ impl Fixture {
 
     fn fund(&self, amount: i128) {
         self.escrow()
-            .fund(&self.contract_id, &self.client, &self.freelancer, &self.admin, &amount, &self.token_addr)
-            .unwrap();
+            .fund(&self.contract_id, &self.client, &self.freelancer, &self.admin, &amount, &self.token_addr);
     }
 }
 
@@ -106,7 +105,7 @@ fn release_milestone_partial_amount_reaches_freelancer() {
     let f = Fixture::setup();
     f.fund(1_000);
     let before = f.token().balance(&f.freelancer);
-    f.escrow().release_milestone(&f.contract_id, &f.client, &400).unwrap();
+    f.escrow().release_milestone(&f.contract_id, &f.client, &400);
     assert_eq!(f.token().balance(&f.freelancer) - before, 400);
     let entry = f.escrow().get_escrow(&f.contract_id).unwrap();
     assert_eq!(entry.released_amount, 400);
@@ -117,8 +116,8 @@ fn release_milestone_partial_amount_reaches_freelancer() {
 fn release_milestone_full_amount_transitions_to_released() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().release_milestone(&f.contract_id, &f.client, &600).unwrap();
-    f.escrow().release_milestone(&f.contract_id, &f.client, &400).unwrap();
+    f.escrow().release_milestone(&f.contract_id, &f.client, &600);
+    f.escrow().release_milestone(&f.contract_id, &f.client, &400);
     let entry = f.escrow().get_escrow(&f.contract_id).unwrap();
     assert_eq!(entry.status, EscrowStatus::Released);
     assert_eq!(entry.released_amount, 1_000);
@@ -128,7 +127,7 @@ fn release_milestone_full_amount_transitions_to_released() {
 fn release_milestone_admin_can_release() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().release_milestone(&f.contract_id, &f.admin, &300).unwrap();
+    f.escrow().release_milestone(&f.contract_id, &f.admin, &300);
     assert_eq!(f.escrow().get_escrow(&f.contract_id).unwrap().released_amount, 300);
 }
 
@@ -164,9 +163,9 @@ fn release_milestone_zero_amount_fails() {
 fn release_all_sends_remaining_to_freelancer() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().release_milestone(&f.contract_id, &f.client, &200).unwrap();
+    f.escrow().release_milestone(&f.contract_id, &f.client, &200);
     let before = f.token().balance(&f.freelancer);
-    f.escrow().release(&f.contract_id, &f.client).unwrap();
+    f.escrow().release(&f.contract_id, &f.client);
     assert_eq!(f.token().balance(&f.freelancer) - before, 800);
     assert_eq!(f.escrow().get_escrow(&f.contract_id).unwrap().status, EscrowStatus::Released);
 }
@@ -188,7 +187,7 @@ fn refund_returns_funds_to_client() {
     let f = Fixture::setup();
     f.fund(1_000);
     let before = f.token().balance(&f.client);
-    f.escrow().refund(&f.contract_id, &f.freelancer).unwrap();
+    f.escrow().refund(&f.contract_id, &f.freelancer);
     assert_eq!(f.token().balance(&f.client) - before, 1_000);
     assert_eq!(f.escrow().get_escrow(&f.contract_id).unwrap().status, EscrowStatus::Refunded);
 }
@@ -205,9 +204,9 @@ fn refund_client_cannot_self_refund() {
 fn refund_after_partial_release_returns_remainder() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().release_milestone(&f.contract_id, &f.client, &300).unwrap();
+    f.escrow().release_milestone(&f.contract_id, &f.client, &300);
     let before = f.token().balance(&f.client);
-    f.escrow().refund(&f.contract_id, &f.freelancer).unwrap();
+    f.escrow().refund(&f.contract_id, &f.freelancer);
     assert_eq!(f.token().balance(&f.client) - before, 700);
 }
 
@@ -219,7 +218,7 @@ fn refund_after_partial_release_returns_remainder() {
 fn dispute_freezes_escrow() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.client).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.client);
     assert_eq!(f.escrow().get_escrow(&f.contract_id).unwrap().status, EscrowStatus::Disputed);
 }
 
@@ -227,7 +226,7 @@ fn dispute_freezes_escrow() {
 fn dispute_blocks_release_milestone() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.freelancer).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.freelancer);
     let result = f.escrow().try_release_milestone(&f.contract_id, &f.client, &500);
     assert_eq!(result, Err(Ok(EscrowError::InvalidState)));
 }
@@ -236,7 +235,7 @@ fn dispute_blocks_release_milestone() {
 fn dispute_blocks_full_release() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.client).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.client);
     let result = f.escrow().try_release(&f.contract_id, &f.client);
     assert_eq!(result, Err(Ok(EscrowError::InvalidState)));
 }
@@ -245,7 +244,7 @@ fn dispute_blocks_full_release() {
 fn dispute_blocks_refund() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.client).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.client);
     let result = f.escrow().try_refund(&f.contract_id, &f.freelancer);
     assert_eq!(result, Err(Ok(EscrowError::InvalidState)));
 }
@@ -267,11 +266,11 @@ fn dispute_by_third_party_fails() {
 fn resolve_dispute_release_to_freelancer() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.client).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.client);
     let before = f.token().balance(&f.freelancer);
     f.escrow()
         .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::ReleaseToFreelancer, &0)
-        .unwrap();
+        ;
     assert_eq!(f.token().balance(&f.freelancer) - before, 1_000);
     assert_eq!(f.escrow().get_escrow(&f.contract_id).unwrap().status, EscrowStatus::Released);
 }
@@ -280,11 +279,11 @@ fn resolve_dispute_release_to_freelancer() {
 fn resolve_dispute_refund_to_client() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.freelancer).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.freelancer);
     let before = f.token().balance(&f.client);
     f.escrow()
         .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::RefundToClient, &0)
-        .unwrap();
+        ;
     assert_eq!(f.token().balance(&f.client) - before, 1_000);
 }
 
@@ -292,12 +291,12 @@ fn resolve_dispute_refund_to_client() {
 fn resolve_dispute_split_60_40_is_atomic() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.client).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.client);
     let fl_before = f.token().balance(&f.freelancer);
     let cl_before = f.token().balance(&f.client);
     f.escrow()
         .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::Split, &6_000)
-        .unwrap();
+        ;
     assert_eq!(f.token().balance(&f.freelancer) - fl_before, 600);
     assert_eq!(f.token().balance(&f.client) - cl_before, 400);
 }
@@ -306,7 +305,7 @@ fn resolve_dispute_split_60_40_is_atomic() {
 fn resolve_dispute_non_admin_fails() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.client).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.client);
     let result = f.escrow().try_resolve_dispute(
         &f.contract_id, &f.client, &DisputeDecision::ReleaseToFreelancer, &0,
     );
@@ -317,7 +316,7 @@ fn resolve_dispute_non_admin_fails() {
 fn resolve_dispute_invalid_bps_fails() {
     let f = Fixture::setup();
     f.fund(1_000);
-    f.escrow().dispute(&f.contract_id, &f.client).unwrap();
+    f.escrow().dispute(&f.contract_id, &f.client);
     let result = f.escrow().try_resolve_dispute(
         &f.contract_id, &f.admin, &DisputeDecision::Split, &10_001,
     );
