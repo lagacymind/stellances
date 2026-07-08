@@ -82,8 +82,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pin to 1.88.0 — the soroban-env-host 21.2.1 testutils.rs has a
+      # ChaCha20Rng: CryptoRng trait-bound bug that was introduced by a
+      # Rust stable deref-coercion change in ~1.88+. 1.85.0 supports
+      # edition2024 crates (sha2 0.11+) and predates the regression.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: wasm32-unknown-unknown
 
