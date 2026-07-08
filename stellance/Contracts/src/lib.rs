@@ -64,7 +64,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, token::TokenClient, Address, Env, Symbol,
+    contract, contractimpl, contracterror, contracttype, token::TokenClient, Address, Env, Symbol,
 };
 
 // ---------------------------------------------------------------------------
@@ -119,12 +119,14 @@ pub enum DisputeDecision {
     Split,
 }
 
-// ---------------------------------------------------------------------------
-// Error type
-// ---------------------------------------------------------------------------
-
+/// Error codes returned by the escrow contract.
+///
+/// `#[contracterror]` generates the `From<EscrowError> for soroban_sdk::Error`
+/// and `From<soroban_sdk::Error> for EscrowError` impls required by
+/// `#[contractimpl]` when contract functions return `Result<_, EscrowError>`.
 #[contracterror]
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u32)]
 pub enum EscrowError {
     /// No escrow entry found for the given contract_id.
     NotFound = 1,
