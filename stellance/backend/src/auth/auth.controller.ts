@@ -1,9 +1,31 @@
-import { Controller, Post, Body, UseGuards, Res, Req, HttpCode, HttpStatus } from '@nestjs/common';
-import type { Response } from 'express';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Res,
+  Req,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from './decorators/public.decorator';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    tokenVersion: number;
+  };
+}
+
+interface CookieRequest extends Request {
+  cookies: Record<string, string>;
+}
 
 @Controller('auth')
 export class AuthController {
@@ -24,13 +46,16 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   async register(
     @Body() registerDto: RegisterDto,
-    @Req() req: any,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { user, access_token, refresh_token } = await this.authService.register(registerDto, {
-      ip: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
+    const ip = req.ip;
+    const userAgent = req.headers['user-agent'];
+    const { user, access_token, refresh_token } =
+      await this.authService.register(registerDto, {
+        ip,
+        userAgent,
+      });
 
     res.cookie('refresh_token', refresh_token, {
       httpOnly: true,
@@ -47,12 +72,18 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-    const { access_token, refresh_token } = await this.authService.login(req.user, {
-      ip: req.ip,
-      userAgent: req.headers['user-agent'],
-    });
-  
+  async login(
+    @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { access_token, refresh_token } = await this.authService.login(
+      req.user,
+      {
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+      },
+    );
+
     res.cookie('refresh_token', refresh_token, {
       httpOnly: true,
       secure: this.isProduction(),
@@ -67,16 +98,18 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+  async refresh(
+    @Req() req: CookieRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { access_token, refresh_token } = await this.authService.refresh(
-      req.cookies?.['refresh_token'],
+      req.cookies['refresh_token'],
       {
         ip: req.ip,
         userAgent: req.headers['user-agent'],
       },
     );
 
-   
     res.cookie('refresh_token', refresh_token, {
       httpOnly: true,
       secure: this.isProduction(),
@@ -91,8 +124,11 @@ export class AuthController {
   @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  async logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-    await this.authService.revokeRefreshToken(req.cookies?.['refresh_token']);
+  async logout(
+    @Req() req: CookieRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.revokeRefreshToken(req.cookies['refresh_token']);
 
     res.clearCookie('access_token', {
       httpOnly: true,
@@ -111,7 +147,10 @@ export class AuthController {
 
   @Post('logout-all')
   @HttpCode(HttpStatus.OK)
-  async logoutAll(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+  async logoutAll(
+    @Req() req: AuthenticatedRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     await this.authService.logoutAll(req.user.id);
 
     res.clearCookie('access_token', {

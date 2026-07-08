@@ -1,13 +1,9 @@
 import { UnauthorizedException } from '@nestjs/common';
+import type { Request } from 'express';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
-// Minimal mock for UsersService — no database required
-const makeUsersService = (overrides: Partial<UsersService> = {}) =>
-  ({
-    findOneById: jest.fn(),
-    ...overrides,
-  }) as unknown as UsersService;
+type ReqWithUser = Request & { user?: { id?: string } };
 
 const fullUser = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -24,12 +20,10 @@ const fullUser = {
 describe('UsersController', () => {
   describe('GET /users/me', () => {
     it('returns the user profile without the password field', async () => {
-      const usersService = makeUsersService({
-        findOneById: jest.fn().mockResolvedValue(fullUser),
-      });
-
+      const findMock = jest.fn().mockResolvedValue(fullUser);
+      const usersService = { findOneById: findMock } as unknown as UsersService;
       const controller = new UsersController(usersService);
-      const req = { user: { id: fullUser.id } } as any;
+      const req = { user: { id: fullUser.id } } as ReqWithUser;
 
       const result = await controller.me(req);
 
@@ -40,24 +34,26 @@ describe('UsersController', () => {
         name: fullUser.name,
         role: 'CLIENT',
       });
-      expect(usersService.findOneById).toHaveBeenCalledWith(fullUser.id);
+      expect(findMock).toHaveBeenCalledWith(fullUser.id);
     });
 
     it('throws UnauthorizedException when req.user is missing', async () => {
-      const usersService = makeUsersService();
+      const findMock = jest.fn();
+      const usersService = { findOneById: findMock } as unknown as UsersService;
       const controller = new UsersController(usersService);
-      const req = {} as any;
+      const req = {} as ReqWithUser;
 
       await expect(controller.me(req)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
-      expect(usersService.findOneById).not.toHaveBeenCalled();
+      expect(findMock).not.toHaveBeenCalled();
     });
 
     it('throws UnauthorizedException when req.user.id is undefined', async () => {
-      const usersService = makeUsersService();
+      const findMock = jest.fn();
+      const usersService = { findOneById: findMock } as unknown as UsersService;
       const controller = new UsersController(usersService);
-      const req = { user: {} } as any;
+      const req = { user: {} } as ReqWithUser;
 
       await expect(controller.me(req)).rejects.toBeInstanceOf(
         UnauthorizedException,
@@ -65,28 +61,24 @@ describe('UsersController', () => {
     });
 
     it('throws UnauthorizedException when no user record is found in the database', async () => {
-      const usersService = makeUsersService({
-        findOneById: jest.fn().mockResolvedValue(null),
-      });
-
+      const findMock = jest.fn().mockResolvedValue(null);
+      const usersService = { findOneById: findMock } as unknown as UsersService;
       const controller = new UsersController(usersService);
-      const req = { user: { id: 'non-existent-id' } } as any;
+      const req = { user: { id: 'non-existent-id' } } as ReqWithUser;
 
       await expect(controller.me(req)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
     });
 
-    it('does not expose tokenVersion in the returned profile', async () => {
-      const usersService = makeUsersService({
-        findOneById: jest.fn().mockResolvedValue({ ...fullUser, tokenVersion: 5 }),
-      });
-
+    it('does not expose password in the returned profile', async () => {
+      const findMock = jest
+        .fn()
+        .mockResolvedValue({ ...fullUser, tokenVersion: 5 });
+      const usersService = { findOneById: findMock } as unknown as UsersService;
       const controller = new UsersController(usersService);
-      const req = { user: { id: fullUser.id } } as any;
+      const req = { user: { id: fullUser.id } } as ReqWithUser;
 
-      // UsersController strips password; tokenVersion is fine to omit verification for
-      // but password must definitely not be present
       const result = await controller.me(req);
       expect(result).not.toHaveProperty('password');
     });

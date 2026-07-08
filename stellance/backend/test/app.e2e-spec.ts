@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from './../src/app.module';
 
 /**
@@ -11,8 +11,7 @@ import { AppModule } from './../src/app.module';
  * DATABASE_URL is set and does not contain the placeholder value.
  */
 const SKIP_E2E =
-  !process.env.DATABASE_URL ||
-  process.env.DATABASE_URL.includes('placeholder');
+  !process.env.DATABASE_URL || process.env.DATABASE_URL.includes('placeholder');
 
 (SKIP_E2E ? describe.skip : describe)('AppController (e2e)', () => {
   let app: INestApplication;

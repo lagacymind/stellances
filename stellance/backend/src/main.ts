@@ -1,4 +1,5 @@
 import { ValidationPipe } from '@nestjs/common';
+import type { RequestHandler } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
@@ -6,7 +7,8 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.use(helmet());
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+  app.use(helmet() as RequestHandler);
   app.use(cookieParser());
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   app.setGlobalPrefix('api');
@@ -36,6 +38,6 @@ async function bootstrap() {
   const port = Number.isNaN(parsedPort) ? 3001 : parsedPort;
 
   await app.listen(port);
-  console.log("server running on port:", port)
+  console.log('server running on port:', port);
 }
-bootstrap();
+void bootstrap();
