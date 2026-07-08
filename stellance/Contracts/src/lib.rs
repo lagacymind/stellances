@@ -61,7 +61,10 @@
 //!   --network testnet
 //! ```
 
-#![no_std]
+// Soroban contracts can declare #![no_std] but it is not required — the
+// wasm32-unknown-unknown target's std is a thin shim and the SDK works
+// either way. We omit it here because the soroban-sdk 21.x testutils
+// #[contracttype] derive (Arbitrary) requires std to be in scope.
 
 use soroban_sdk::{
     contract, contractimpl, contracterror, contracttype, token::TokenClient, Address, Env, Symbol,
@@ -73,7 +76,7 @@ use soroban_sdk::{
 
 /// Status of an escrow entry.
 #[contracttype]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum EscrowStatus {
     /// Funds are locked — milestones can be released.
     Funded,
@@ -108,7 +111,7 @@ pub struct EscrowEntry {
 
 /// Decision options when an admin resolves a dispute.
 #[contracttype]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum DisputeDecision {
     /// Transfer all remaining funds to the freelancer.
     ReleaseToFreelancer,
