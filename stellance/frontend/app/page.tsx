@@ -237,7 +237,7 @@ export default function Home() {
                 Stellar is a public payment network optimized for fast, low-cost transfers. Transactions finalize in 3–5 seconds and cost less than a fraction of a cent — which means milestone payments that would be impractical on Ethereum become trivial here.
               </p>
               <p style={{ fontSize: "0.95rem", lineHeight: 1.75, color: "#7A9BBE" }}>
-                We use Stellar's built-in account mechanics and the Horizon API for escrow. Soroban smart contracts are next on the roadmap for more complex dispute logic and automated validation.
+                We use Stellar's built-in account mechanics and the Horizon API for live demos. The Soroban escrow contract — covering fund, milestone release, refund, dispute, and atomic dispute resolution — is complete, test-covered, and compiles to WASM. Backend and frontend integration are in active development.
               </p>
             </div>
             {/* Stats: borderTop on mobile, borderLeft on lg */}
@@ -245,11 +245,11 @@ export default function Home() {
               {[
                 { stat: "3–5s", label: "Transaction finality" },
                 { stat: "< $0.01", label: "Per transaction fee" },
-                { stat: "Trustless", label: "Escrow via Horizon" },
-                { stat: "Soroban", label: "Smart contracts (roadmap)" },
+                { stat: "Trustless", label: "Soroban escrow contract" },
+                { stat: "Soroban", label: "Escrow smart contract" },
               ].map((item, i) => (
                 <div key={item.label} className={i > 0 ? "pt-5 mt-5 border-t border-[#152D4E] lg:border-t lg:mt-5" : ""}>
-                  <p style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "1.6rem", fontWeight: 700, color: i === 3 ? "#6B8BAD" : "#5EE7FF", letterSpacing: "-0.03em", lineHeight: 1, marginBottom: "0.25rem" }}>
+                  <p style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "1.6rem", fontWeight: 700, color: "#5EE7FF", letterSpacing: "-0.03em", lineHeight: 1, marginBottom: "0.25rem" }}>
                     {item.stat}
                   </p>
                   <p style={{ fontSize: "0.8rem", color: "#4A6B8A" }}>{item.label}</p>
@@ -291,7 +291,7 @@ export default function Home() {
                 ["backend ", "nestjs  prisma  postgresql"],
                 ["network ", "stellar  horizon api  stellar-sdk"],
                 ["wallet  ", "freighter (browser extension)"],
-                ["contracts", "soroban (planned)  rust"],
+                ["contracts", "soroban  rust  wasm"],
               ].map(([layer, tech]) => (
                 <div key={layer} style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
                   <span style={{ color: "#3DA9FC", minWidth: "5rem", flexShrink: 0 }}>{layer}</span>
