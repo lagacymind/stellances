@@ -1,12 +1,73 @@
 import Link from "next/link";
 import Image from "next/image";
+import FeatureCard from "./components/FeatureCard";
+
+// ─── Stats Bar Data ───────────────────────────────────────────────────────────
+const STATS = [
+  { value: "0%", label: "Platform fee" },
+  { value: "~5s", label: "Settlement time" },
+  { value: "<$0.01", label: "Transaction cost" },
+  { value: "100%", label: "Non-custodial escrow" },
+];
+
+// ─── How It Works Data ────────────────────────────────────────────────────────
+const HOW_IT_WORKS = [
+  {
+    step: "01",
+    title: "Post your work",
+    body: "Clients post the job and agree on milestones with the freelancer. Both parties sign the contract terms on-chain.",
+    icon: "📋",
+  },
+  {
+    step: "02",
+    title: "Funds go into escrow",
+    body: "Client locks funds into the Soroban smart contract. The code holds the money — not Stellance, not anyone else.",
+    icon: "🔒",
+  },
+  {
+    step: "03",
+    title: "Get paid instantly",
+    body: "Milestone approved? Payment releases to the freelancer's Stellar wallet in ~5 seconds. No invoice. No wait.",
+    icon: "⚡",
+  },
+];
+
+// ─── Features Data ────────────────────────────────────────────────────────────
+const FEATURES = [
+  {
+    title: "Trustless escrow",
+    body: "Funds are held by a Soroban smart contract, not by Stellance. No platform can freeze, redirect, or touch your money.",
+    accent: "#a78bfa",
+  },
+  {
+    title: "Instant settlement",
+    body: "Approvals trigger on-chain transfers in ~5 seconds. No bank cycles, no ACH delays, no invoice queues.",
+    accent: "#38bdf8",
+  },
+  {
+    title: "Cross-border by default",
+    body: "Stellar's anchor network connects to local banking rails in 50+ countries. A client in Berlin, a freelancer in Lagos — same contract.",
+    accent: "#34d399",
+  },
+  {
+    title: "Milestone granularity",
+    body: "Sub-cent fees mean you can split any project into as many milestones as the work demands — not as few as gas costs force.",
+    accent: "#fb923c",
+  },
+];
 
 export default function Home() {
   return (
-    <div style={{ backgroundColor: "#0B1E3D", color: "#C8D6E5", fontFamily: "var(--font-inter), system-ui, sans-serif" }}>
-
-      {/* Nav */}
-      <nav style={{ borderBottom: "1px solid #152D4E" }}>
+    <div
+      className="min-h-screen"
+      style={{
+        background: "linear-gradient(160deg, #1e0a3c 0%, #0c1a3a 40%, #0c2a40 70%, #0c3050 100%)",
+        color: "#C8D6E5",
+        fontFamily: "var(--font-inter), system-ui, sans-serif",
+      }}
+    >
+      {/* ── Nav ─────────────────────────────────────────────────────────────── */}
+      <nav style={{ borderBottom: "1px solid rgba(167,139,250,0.15)", backdropFilter: "blur(8px)", position: "sticky", top: 0, zIndex: 50, backgroundColor: "rgba(15,8,35,0.7)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Image src="/logo.png" alt="Stellance" width={28} height={28} style={{ borderRadius: "6px" }} />
@@ -14,24 +75,41 @@ export default function Home() {
               Stellance
             </span>
           </div>
-          <div className="hidden sm:flex items-center gap-6 md:gap-8 text-sm" style={{ color: "#6B8BAD" }}>
-            <a href="#problem" className="hover:text-white transition-colors">Problem</a>
-            <a href="#how-it-works" className="hover:text-white transition-colors hidden md:inline">How it works</a>
-            <a href="#builders" className="hover:text-white transition-colors hidden md:inline">Builders</a>
-            <a href="https://github.com/alone-in/stellances" target="_blank" rel="noreferrer" className="hover:text-white transition-colors" style={{ color: "#6B8BAD" }}>
+          <div className="hidden sm:flex items-center gap-6 md:gap-8 text-sm" style={{ color: "#9ca3af" }}>
+            <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
+            <a href="#features" className="hover:text-white transition-colors hidden md:inline">Features</a>
+            <a href="/demo" className="hover:text-white transition-colors hidden md:inline">Demo</a>
+            <a
+              href="https://github.com/alone-in/stellances"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-white transition-colors"
+            >
               ↗ GitHub
             </a>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-16 sm:pt-24 lg:pt-28 pb-12 sm:pb-16 lg:pb-24">
-        <div className="grid lg:grid-cols-2 gap-10 lg:gap-12 items-center mb-10 sm:mb-14">
+      {/* ── Hero ────────────────────────────────────────────────────────────── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-16 sm:pt-24 lg:pt-32 pb-12 sm:pb-16">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center mb-10 sm:mb-14">
           <div>
-            <p className="text-sm mb-4 sm:mb-5" style={{ color: "#3DA9FC", letterSpacing: "0.02em" }}>
+            {/* Badge */}
+            <p
+              className="inline-flex items-center gap-2 text-sm mb-5 px-3 py-1 rounded-full"
+              style={{
+                background: "rgba(167,139,250,0.12)",
+                border: "1px solid rgba(167,139,250,0.25)",
+                color: "#c4b5fd",
+                letterSpacing: "0.02em",
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#a78bfa", display: "inline-block" }} />
               Stellar network · Testnet live · Open source
             </p>
+
+            {/* Headline */}
             <h1
               style={{
                 fontFamily: "var(--font-space-grotesk)",
@@ -40,307 +118,343 @@ export default function Home() {
                 lineHeight: 1.06,
                 letterSpacing: "-0.03em",
                 color: "#fff",
-                marginBottom: "1.25rem",
+                marginBottom: "1rem",
               }}
             >
               Freelancers get paid<br />
               the moment work<br />
-              <span style={{ color: "#3DA9FC" }}>is approved.</span>
+              <span
+                style={{
+                  backgroundImage: "linear-gradient(90deg, #a78bfa 0%, #38bdf8 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                is approved.
+              </span>
             </h1>
-            <p style={{ fontSize: "clamp(1rem, 2vw, 1.1rem)", lineHeight: 1.7, color: "#7A9BBE", maxWidth: "36rem" }}>
+
+            {/* Tagline */}
+            <p
+              style={{
+                fontFamily: "var(--font-space-grotesk)",
+                fontSize: "1.05rem",
+                fontWeight: 500,
+                color: "#c4b5fd",
+                marginBottom: "1rem",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Your work, your money, your terms.
+            </p>
+
+            <p style={{ fontSize: "clamp(0.95rem, 2vw, 1.05rem)", lineHeight: 1.7, color: "#94a3b8", maxWidth: "36rem" }}>
               On-chain escrow on Stellar holds funds until a milestone is approved — then releases them instantly. No invoice cycles, no platform float, no 20% cut.
             </p>
+
+            {/* CTAs */}
+            <div className="flex flex-row gap-3 mt-8 flex-wrap">
+              <Link
+                href="/demo"
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                  background: "linear-gradient(90deg, #7c3aed 0%, #0ea5e9 100%)",
+                  color: "#fff", fontWeight: 600,
+                  fontSize: "0.875rem", padding: "0.75rem 1.5rem", borderRadius: "8px",
+                  textDecoration: "none", whiteSpace: "nowrap",
+                  boxShadow: "0 0 24px rgba(124,58,237,0.4)",
+                }}
+              >
+                Try testnet demo →
+              </Link>
+              <a
+                href="https://github.com/alone-in/stellances"
+                target="_blank" rel="noreferrer"
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                  border: "1px solid rgba(167,139,250,0.3)", color: "#c4b5fd",
+                  fontSize: "0.875rem", padding: "0.75rem 1.5rem", borderRadius: "8px",
+                  textDecoration: "none", whiteSpace: "nowrap",
+                  backgroundColor: "rgba(167,139,250,0.05)",
+                }}
+              >
+                View on GitHub ↗
+              </a>
+            </div>
           </div>
+
+          {/* Hero image */}
           <div className="hidden lg:block">
             <Image
               src="/free.jpeg"
               alt="Freelancer working"
               width={600}
               height={480}
-              style={{ width: "100%", height: "auto", borderRadius: "10px", objectFit: "cover" }}
+              style={{
+                width: "100%", height: "auto", borderRadius: "12px", objectFit: "cover",
+                border: "1px solid rgba(167,139,250,0.2)",
+                boxShadow: "0 0 60px rgba(124,58,237,0.15)",
+              }}
               priority
             />
           </div>
         </div>
 
-        {/* Mobile: show image between text and CTAs */}
+        {/* Mobile hero image */}
         <div className="block lg:hidden mb-8">
           <Image
             src="/free.jpeg"
             alt="Freelancer working"
             width={600}
             height={360}
-            style={{ width: "100%", height: "auto", borderRadius: "10px", objectFit: "cover", maxHeight: "260px" }}
-          />
-        </div>
-
-        {/* CTAs + receipt */}
-        <div className="grid lg:grid-cols-[auto_1fr] gap-8 lg:gap-16 items-start">
-          <div className="flex flex-row sm:flex-row lg:flex-col gap-3">
-            <Link
-              href="/demo"
-              className="flex-1 lg:flex-none"
-              style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                backgroundColor: "#3DA9FC", color: "#0B1E3D", fontWeight: 600,
-                fontSize: "0.875rem", padding: "0.75rem 1.25rem", borderRadius: "6px",
-                textDecoration: "none", whiteSpace: "nowrap",
-              }}
-            >
-              Try testnet demo <span>→</span>
-            </Link>
-            <a
-              href="https://github.com/alone-in/stellances"
-              target="_blank" rel="noreferrer"
-              className="flex-1 lg:flex-none"
-              style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                border: "1px solid #1E3A5F", color: "#7A9BBE",
-                fontSize: "0.875rem", padding: "0.75rem 1.25rem", borderRadius: "6px",
-                textDecoration: "none", whiteSpace: "nowrap",
-              }}
-            >
-              View on GitHub ↗
-            </a>
-          </div>
-
-          {/* Transaction receipt — desktop only */}
-          <div
-            className="hidden lg:block"
             style={{
-              fontFamily: "var(--font-geist-mono), 'Courier New', monospace",
-              fontSize: "0.78rem", lineHeight: 1.6,
-              backgroundColor: "#081628", border: "1px solid #152D4E",
-              borderRadius: "8px", padding: "1.5rem 1.75rem",
-              maxWidth: "480px", color: "#5E7E9E",
+              width: "100%", height: "auto", borderRadius: "10px", objectFit: "cover",
+              maxHeight: "260px", border: "1px solid rgba(167,139,250,0.2)",
             }}
-          >
-            <div style={{ marginBottom: "0.75rem", color: "#3DA9FC" }}># stellar testnet · escrow tx</div>
-            <div className="space-y-1">
-              <div><span style={{ color: "#3E5F80" }}>from     </span><span style={{ color: "#C8D6E5" }}>GCLIENT...4X2K</span></div>
-              <div><span style={{ color: "#3E5F80" }}>to escrow</span><span style={{ color: "#C8D6E5" }}>GESCROW...9RMN</span></div>
-              <div><span style={{ color: "#3E5F80" }}>amount   </span><span style={{ color: "#fff" }}>1,200 XLM</span></div>
-              <div><span style={{ color: "#3E5F80" }}>condition</span><span style={{ color: "#C8D6E5" }}>milestone_approved</span></div>
-              <div><span style={{ color: "#3E5F80" }}>status   </span><span style={{ color: "#5EE7FF" }}>● locked</span></div>
-            </div>
-            <div style={{ margin: "1rem 0", borderTop: "1px solid #152D4E" }} />
-            <div className="space-y-1">
-              <div><span style={{ color: "#3E5F80" }}>event    </span><span style={{ color: "#C8D6E5" }}>client_approved</span></div>
-              <div><span style={{ color: "#3E5F80" }}>released </span><span style={{ color: "#fff" }}>1,200 XLM → GFREELANCER...7WQ</span></div>
-              <div><span style={{ color: "#3E5F80" }}>ledger   </span><span style={{ color: "#C8D6E5" }}>48291774</span></div>
-              <div><span style={{ color: "#3E5F80" }}>settled  </span><span style={{ color: "#3DA9FC" }}>4.8s after approval</span></div>
-            </div>
-          </div>
+          />
         </div>
       </section>
 
-      {/* Problem */}
-      <section id="problem" style={{ borderTop: "1px solid #152D4E" }} className="py-16 sm:py-20">
+      {/* ── Stats Bar ───────────────────────────────────────────────────────── */}
+      <section
+        style={{
+          borderTop: "1px solid rgba(167,139,250,0.15)",
+          borderBottom: "1px solid rgba(167,139,250,0.15)",
+          background: "rgba(255,255,255,0.03)",
+          backdropFilter: "blur(4px)",
+        }}
+        className="py-8 sm:py-10"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-8">
-          <p style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#3DA9FC", marginBottom: "2.5rem" }}>
-            The problem
-          </p>
-          {/* Mobile: stacked with bottom borders. Desktop: side-by-side with right borders */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4" style={{ borderTop: "1px solid #152D4E" }}>
-            {[
-              { n: "01", heading: "You wait.\nA lot.", body: "Invoices sit in approval queues for days or weeks. The work is done. The payment isn't." },
-              { n: "02", heading: "The platform\ntakes its cut.", body: "20–30% gone before you see a dollar. Every transaction, every time." },
-              { n: "03", heading: "No guarantee\nfor either side.", body: "Clients pay blind. Freelancers deliver blind. Someone always takes on the risk." },
-              { n: "04", heading: "Milestones\ndon't scale.", body: "Splitting a project into smaller payments is slow, expensive, and easy to dispute." },
-            ].map((item) => (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+            {STATS.map((item, i) => (
               <div
-                key={item.n}
-                style={{ padding: "2rem 1.5rem sm:2.5rem sm:2rem", borderBottom: "1px solid #152D4E" }}
+                key={item.label}
                 className={[
-                  "p-6 sm:p-8",
-                  "border-b border-[#152D4E]",
-                  // right border on sm: odd items (0,2), all on lg except last
-                  "sm:even:border-r-0 sm:odd:border-r sm:border-r-[#152D4E]",
-                  "lg:border-b-0 lg:border-r lg:border-r-[#152D4E] lg:last:border-r-0",
+                  "text-center sm:text-left",
+                  i < 3 ? "lg:border-r lg:border-r-[rgba(167,139,250,0.15)] lg:pr-8" : "",
                 ].join(" ")}
               >
-                <p style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "3rem", fontWeight: 700, color: "#152D4E", lineHeight: 1, marginBottom: "1rem", letterSpacing: "-0.04em" }}>
-                  {item.n}
+                <p
+                  style={{
+                    fontFamily: "var(--font-space-grotesk)",
+                    fontSize: "clamp(1.75rem, 4vw, 2.5rem)",
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    marginBottom: "0.35rem",
+                    backgroundImage: "linear-gradient(90deg, #a78bfa 0%, #38bdf8 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  {item.value}
                 </p>
-                <h3 style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "1rem", fontWeight: 600, color: "#E0ECF8", lineHeight: 1.3, marginBottom: "0.75rem", whiteSpace: "pre-line" }}>
-                  {item.heading}
-                </h3>
-                <p style={{ fontSize: "0.85rem", lineHeight: 1.65, color: "#6B8BAD" }}>{item.body}</p>
+                <p style={{ fontSize: "0.8rem", color: "#64748b", letterSpacing: "0.02em" }}>{item.label}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section id="how-it-works" style={{ borderTop: "1px solid #152D4E", backgroundColor: "#091929" }} className="py-16 sm:py-20">
+      {/* ── How It Works ────────────────────────────────────────────────────── */}
+      <section id="how-it-works" className="py-16 sm:py-24" style={{ borderBottom: "1px solid rgba(167,139,250,0.15)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-8">
-          <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 items-start">
-            <div className="lg:sticky lg:top-8">
-              <p style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#3DA9FC", marginBottom: "1rem" }}>How it works</p>
-              <h2 style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "clamp(1.6rem, 3vw, 2rem)", fontWeight: 700, color: "#fff", letterSpacing: "-0.03em", lineHeight: 1.2, marginBottom: "0.75rem" }}>
-                Five steps.<br />One settlement.
-              </h2>
-              <p style={{ fontSize: "0.875rem", lineHeight: 1.65, color: "#6B8BAD" }}>
-                The whole flow runs on Stellar. No intermediary holds your money at any point.
-              </p>
-            </div>
-
-            <div style={{ position: "relative" }}>
-              <div style={{ position: "absolute", left: "1.1rem", top: "0.5rem", bottom: "0.5rem", width: "1px", background: "linear-gradient(to bottom, #1E3A5F, #3DA9FC 50%, #1E3A5F)" }} />
-              <div>
-                {[
-                  { step: "01", title: "Connect wallet", body: "Link a Stellar wallet — Freighter works out of the box. No custodial account, no KYC flow." },
-                  { step: "02", title: "Create a contract", body: "Define the work, milestones, and payment amounts. Both parties sign on-chain." },
-                  { step: "03", title: "Fund escrow", body: "Client locks XLM into the escrow account. Funds are on-chain — visible to both sides, touchable by neither until conditions are met." },
-                  { step: "04", title: "Deliver milestones", body: "Freelancer submits work through the platform. Client reviews against agreed terms." },
-                  { step: "05", title: "Payment released", body: "Approval triggers an immediate on-chain transfer. 4–5 second settlement to the freelancer's wallet." },
-                ].map((s, i) => (
-                  <div key={s.step} style={{ display: "flex", gap: "1.5rem", paddingBottom: i < 4 ? "2rem" : 0 }}>
-                    <div style={{ flexShrink: 0, width: "2.25rem", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <div style={{
-                        width: "2.25rem", height: "2.25rem", borderRadius: "50%",
-                        border: `1px solid ${i === 4 ? "#3DA9FC" : "#1E3A5F"}`,
-                        backgroundColor: i === 4 ? "#0F2E50" : "#091929",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: "0.65rem", fontWeight: 700,
-                        color: i === 4 ? "#3DA9FC" : "#3E5F80",
-                        letterSpacing: "0.02em", position: "relative", zIndex: 1,
-                      }}>
-                        {s.step}
-                      </div>
-                    </div>
-                    <div style={{ paddingTop: "0.3rem" }}>
-                      <h3 style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "0.95rem", fontWeight: 600, color: "#E0ECF8", marginBottom: "0.4rem", letterSpacing: "-0.01em" }}>
-                        {s.title}
-                      </h3>
-                      <p style={{ fontSize: "0.85rem", lineHeight: 1.65, color: "#6B8BAD" }}>{s.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Why Stellar */}
-      <section id="why-stellar" style={{ borderTop: "1px solid #152D4E" }} className="py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8">
-          <p style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#3DA9FC", marginBottom: "2rem" }}>Why Stellar</p>
-          <div className="grid lg:grid-cols-[3fr_2fr] gap-10 lg:gap-16 items-start">
-            <div>
-              <h2 style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "clamp(1.6rem, 3vw, 2.5rem)", fontWeight: 700, color: "#fff", letterSpacing: "-0.03em", lineHeight: 1.15, marginBottom: "1.25rem" }}>
-                Payment rails that work without you knowing they&apos;re there.
-              </h2>
-              <p style={{ fontSize: "0.95rem", lineHeight: 1.75, color: "#7A9BBE", marginBottom: "1rem" }}>
-                Stellar is a public payment network optimized for fast, low-cost transfers. Transactions finalize in 3–5 seconds and cost less than a fraction of a cent — which means milestone payments that would be impractical on Ethereum become trivial here.
-              </p>
-              <p style={{ fontSize: "0.95rem", lineHeight: 1.75, color: "#7A9BBE" }}>
-                We use Stellar&apos;s built-in account mechanics and the Horizon API for live demos. The Soroban escrow contract — covering fund, milestone release, refund, dispute, and atomic dispute resolution — is complete, test-covered, and compiles to WASM. Backend and frontend integration are in active development.
-              </p>
-            </div>
-            {/* Stats: borderTop on mobile, borderLeft on lg */}
-            <div className="grid grid-cols-2 lg:grid-cols-1 gap-0 mt-4 lg:mt-0 pt-6 lg:pt-0 border-t lg:border-t-0 lg:border-l lg:pl-10 border-[#152D4E]">
-              {[
-                { stat: "3–5s", label: "Transaction finality" },
-                { stat: "< $0.01", label: "Per transaction fee" },
-                { stat: "Trustless", label: "Soroban escrow contract" },
-                { stat: "Soroban", label: "Escrow smart contract" },
-              ].map((item, i) => (
-                <div key={item.label} className={i > 0 ? "pt-5 mt-5 border-t border-[#152D4E] lg:border-t lg:mt-5" : ""}>
-                  <p style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "1.6rem", fontWeight: 700, color: "#5EE7FF", letterSpacing: "-0.03em", lineHeight: 1, marginBottom: "0.25rem" }}>
-                    {item.stat}
-                  </p>
-                  <p style={{ fontSize: "0.8rem", color: "#4A6B8A" }}>{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Built for builders */}
-      <section id="builders" style={{ borderTop: "1px solid #152D4E", backgroundColor: "#091929" }} className="py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8">
-          <p style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#3DA9FC", marginBottom: "2rem" }}>Open source</p>
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
-            <div>
-              <h2 style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "clamp(1.6rem, 3vw, 2.5rem)", fontWeight: 700, color: "#fff", letterSpacing: "-0.03em", lineHeight: 1.15, marginBottom: "1.25rem" }}>
-                Built in public.<br />Contributions welcome.
-              </h2>
-              <p style={{ fontSize: "0.95rem", lineHeight: 1.75, color: "#7A9BBE", marginBottom: "2rem" }}>
-                Stellance is an active project in the Stellar Wave program. The full codebase is on GitHub. If you want to build on real payment infrastructure — frontend, backend, or Soroban contracts — there are open issues and clear contribution guidelines.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-                <a href="https://github.com/alone-in/stellances/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer"
-                  style={{ backgroundColor: "#3DA9FC", color: "#0B1E3D", fontWeight: 600, fontSize: "0.875rem", padding: "0.65rem 1.25rem", borderRadius: "6px", textDecoration: "none", textAlign: "center" }}>
-                  Contribution Guide
-                </a>
-                <a href="https://github.com/alone-in/stellances/issues" target="_blank" rel="noreferrer"
-                  style={{ border: "1px solid #1E3A5F", color: "#7A9BBE", fontSize: "0.875rem", padding: "0.65rem 1.25rem", borderRadius: "6px", textDecoration: "none", textAlign: "center" }}>
-                  Open Issues ↗
-                </a>
-              </div>
-            </div>
-            {/* Stack block — overflow-x scroll on mobile if needed */}
-            <div style={{ backgroundColor: "#081628", border: "1px solid #152D4E", borderRadius: "8px", padding: "1.5rem", fontFamily: "var(--font-geist-mono), 'Courier New', monospace", fontSize: "0.8rem", lineHeight: 1.7, overflowX: "auto" }}>
-              <p style={{ color: "#3E5F80", marginBottom: "1rem" }}># stack</p>
-              {[
-                ["frontend", "next.js 16  react 19  tailwind 4"],
-                ["backend ", "nestjs  prisma  postgresql"],
-                ["network ", "stellar  horizon api  stellar-sdk"],
-                ["wallet  ", "freighter (browser extension)"],
-                ["contracts", "soroban  rust  wasm"],
-              ].map(([layer, tech]) => (
-                <div key={layer} style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                  <span style={{ color: "#3DA9FC", minWidth: "5rem", flexShrink: 0 }}>{layer}</span>
-                  <span style={{ color: "#8AAEC8" }}>{tech}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer CTA */}
-      <section style={{ borderTop: "1px solid #152D4E" }} className="py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 grid lg:grid-cols-[1fr_auto] gap-8 lg:gap-12 items-center">
-          <div>
-            <h2 style={{ fontFamily: "var(--font-space-grotesk)", fontSize: "clamp(1.4rem, 2.5vw, 2rem)", fontWeight: 700, color: "#fff", letterSpacing: "-0.03em", marginBottom: "0.75rem" }}>
-              See it on the Stellar testnet — no signup required.
+          {/* Section label */}
+          <p style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#a78bfa", marginBottom: "0.75rem" }}>
+            How it works
+          </p>
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-12 sm:mb-16">
+            <h2
+              style={{
+                fontFamily: "var(--font-space-grotesk)",
+                fontSize: "clamp(1.8rem, 3.5vw, 2.75rem)",
+                fontWeight: 700,
+                color: "#fff",
+                letterSpacing: "-0.03em",
+                lineHeight: 1.15,
+                maxWidth: "32rem",
+              }}
+            >
+              Three steps.<br />One settlement.
             </h2>
-            <p style={{ fontSize: "0.9rem", color: "#6B8BAD" }}>
-              Generate a keypair, fund it with Friendbot, and watch a payment settle in under 5 seconds.
+            <p style={{ fontSize: "0.9rem", color: "#64748b", maxWidth: "24rem" }}>
+              The whole flow runs on Stellar. No intermediary holds your money at any point.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row lg:flex-col gap-3 lg:min-w-[180px]">
-            <Link href="/demo"
-              className="flex-1 lg:flex-none"
-              style={{ backgroundColor: "#3DA9FC", color: "#0B1E3D", fontWeight: 600, fontSize: "0.875rem", padding: "0.75rem 1.5rem", borderRadius: "6px", textDecoration: "none", textAlign: "center", whiteSpace: "nowrap" }}>
+
+          {/* Steps grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-0 relative">
+            {/* Connector line — desktop only */}
+            <div
+              className="hidden md:block absolute top-10 left-[16.66%] right-[16.66%] h-px"
+              style={{ background: "linear-gradient(90deg, rgba(167,139,250,0.3) 0%, rgba(56,189,248,0.3) 100%)" }}
+            />
+
+            {HOW_IT_WORKS.map((item, i) => (
+              <div
+                key={item.step}
+                className={[
+                  "flex flex-col",
+                  "p-6 sm:p-8",
+                  i < 2 ? "md:border-r md:border-r-[rgba(167,139,250,0.15)]" : "",
+                  i > 0 ? "border-t border-t-[rgba(167,139,250,0.15)] md:border-t-0" : "",
+                ].join(" ")}
+              >
+                {/* Step number bubble */}
+                <div
+                  style={{
+                    width: "2.5rem", height: "2.5rem", borderRadius: "50%",
+                    background: "linear-gradient(135deg, rgba(124,58,237,0.3) 0%, rgba(14,165,233,0.3) 100%)",
+                    border: "1px solid rgba(167,139,250,0.4)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "0.65rem", fontWeight: 700, color: "#c4b5fd",
+                    letterSpacing: "0.04em", marginBottom: "1.25rem", flexShrink: 0,
+                    position: "relative", zIndex: 1,
+                  }}
+                >
+                  {item.step}
+                </div>
+
+                <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>{item.icon}</div>
+
+                <h3
+                  style={{
+                    fontFamily: "var(--font-space-grotesk)",
+                    fontSize: "1.1rem", fontWeight: 600, color: "#f1f5f9",
+                    marginBottom: "0.6rem", letterSpacing: "-0.01em",
+                  }}
+                >
+                  {item.title}
+                </h3>
+                <p style={{ fontSize: "0.875rem", lineHeight: 1.7, color: "#64748b" }}>{item.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Features ────────────────────────────────────────────────────────── */}
+      <section id="features" className="py-16 sm:py-24" style={{ borderBottom: "1px solid rgba(167,139,250,0.15)" }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-8">
+          <p style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#a78bfa", marginBottom: "0.75rem" }}>
+            Features
+          </p>
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-12">
+            <h2
+              style={{
+                fontFamily: "var(--font-space-grotesk)",
+                fontSize: "clamp(1.8rem, 3.5vw, 2.75rem)",
+                fontWeight: 700, color: "#fff",
+                letterSpacing: "-0.03em", lineHeight: 1.15,
+              }}
+            >
+              Built on Stellar.<br />
+              <span
+                style={{
+                  backgroundImage: "linear-gradient(90deg, #a78bfa 0%, #38bdf8 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                Designed for freelancers.
+              </span>
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-px" style={{ border: "1px solid rgba(167,139,250,0.15)", borderRadius: "12px", overflow: "hidden" }}>
+            {FEATURES.map((feature) => (
+              <FeatureCard
+                key={feature.title}
+                title={feature.title}
+                body={feature.body}
+                accent={feature.accent}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Footer CTA ──────────────────────────────────────────────────────── */}
+      <section className="py-16 sm:py-24" style={{ borderBottom: "1px solid rgba(167,139,250,0.15)" }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-8 text-center">
+          <p style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#a78bfa", marginBottom: "1rem" }}>
+            See it live
+          </p>
+          <h2
+            style={{
+              fontFamily: "var(--font-space-grotesk)",
+              fontSize: "clamp(1.6rem, 3.5vw, 2.5rem)",
+              fontWeight: 700, color: "#fff",
+              letterSpacing: "-0.03em", marginBottom: "1rem",
+            }}
+          >
+            See it on the Stellar testnet —<br className="hidden sm:inline" /> no signup required.
+          </h2>
+          <p style={{ fontSize: "0.95rem", color: "#64748b", marginBottom: "2rem", maxWidth: "36rem", margin: "0 auto 2rem" }}>
+            Generate a keypair, fund it with Friendbot, and watch a payment settle in under 5 seconds.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/demo"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                background: "linear-gradient(90deg, #7c3aed 0%, #0ea5e9 100%)",
+                color: "#fff", fontWeight: 600,
+                fontSize: "0.875rem", padding: "0.75rem 2rem", borderRadius: "8px",
+                textDecoration: "none", whiteSpace: "nowrap",
+                boxShadow: "0 0 24px rgba(124,58,237,0.4)",
+              }}
+            >
               Try the demo →
             </Link>
-            <a href="https://github.com/alone-in/stellances" target="_blank" rel="noreferrer"
-              className="flex-1 lg:flex-none"
-              style={{ border: "1px solid #1E3A5F", color: "#7A9BBE", fontSize: "0.875rem", padding: "0.75rem 1.5rem", borderRadius: "6px", textDecoration: "none", textAlign: "center" }}>
+            <a
+              href="https://github.com/alone-in/stellances"
+              target="_blank" rel="noreferrer"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                border: "1px solid rgba(167,139,250,0.3)", color: "#c4b5fd",
+                fontSize: "0.875rem", padding: "0.75rem 2rem", borderRadius: "8px",
+                textDecoration: "none", whiteSpace: "nowrap",
+                backgroundColor: "rgba(167,139,250,0.05)",
+              }}
+            >
               GitHub ↗
             </a>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{ borderTop: "1px solid #0F2340" }} className="px-4 sm:px-8 py-6">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" style={{ fontSize: "0.75rem", color: "#344F6A" }}>
-          <span>© 2025 Stellance · MIT License</span>
-          <div style={{ display: "flex", gap: "1.25rem", flexWrap: "wrap" }}>
-            <a href="https://github.com/alone-in/stellances" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
-            <a href="https://github.com/alone-in/stellances/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Contributing</a>
-            <a href="https://github.com/alone-in/stellances/blob/main/README.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">Docs</a>
+      {/* ── Footer ──────────────────────────────────────────────────────────── */}
+      <footer className="px-4 sm:px-8 py-8" style={{ backgroundColor: "rgba(0,0,0,0.2)" }}>
+        <div className="max-w-7xl mx-auto">
+          {/* Top row: logo + nav links */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6" style={{ borderBottom: "1px solid rgba(167,139,250,0.1)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Image src="/logo.png" alt="Stellance" width={22} height={22} style={{ borderRadius: "5px" }} />
+              <span style={{ fontFamily: "var(--font-space-grotesk)", color: "#e2e8f0", fontWeight: 700, fontSize: "0.95rem" }}>
+                Stellance
+              </span>
+            </div>
+            <nav className="flex flex-wrap gap-x-6 gap-y-2" style={{ fontSize: "0.8rem" }}>
+              <a href="#how-it-works" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>How it works</a>
+              <a href="#features" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Features</a>
+              <Link href="/demo" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Demo</Link>
+              <a href="https://github.com/alone-in/stellances" target="_blank" rel="noreferrer" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>GitHub ↗</a>
+              <a href="https://github.com/alone-in/stellances/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Contributing</a>
+              <a href="https://github.com/alone-in/stellances/blob/main/docs/architecture.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Docs</a>
+              <a href="https://github.com/alone-in/stellances/blob/main/LICENSE" target="_blank" rel="noreferrer" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>License</a>
+            </nav>
+          </div>
+          {/* Bottom row */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-5" style={{ fontSize: "0.75rem", color: "#475569" }}>
+            <span>© 2025 Stellance · MIT License</span>
+            <span>Built on the Stellar network · Soroban smart contracts</span>
           </div>
         </div>
       </footer>
-
     </div>
   );
 }
