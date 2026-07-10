@@ -1,6 +1,6 @@
 import { UnauthorizedException, ConflictException } from '@nestjs/common';
 import type { Request } from 'express';
-import { UsersController } from './users.controller';
+import { UsersController, UserProfile } from './users.controller';
 import { UsersService } from './users.service';
 
 type AuthReq = Request & { user?: { id?: string } };
@@ -22,7 +22,7 @@ describe('UsersController', () => {
     const usersService = {
       findOneById: jest.fn(),
       updateProfile: jest.fn(),
-    } as unknown as UsersService;
+    } as unknown as jest.Mocked<UsersService>;
     const controller = new UsersController(usersService);
     return { usersService, controller };
   }
@@ -30,7 +30,7 @@ describe('UsersController', () => {
   describe('GET /users/me', () => {
     it('returns profile without password', async () => {
       const { usersService, controller } = setup();
-      (usersService.findOneById as jest.Mock).mockResolvedValue(fullUser);
+      usersService.findOneById.mockResolvedValue(fullUser);
       const req = { user: { id: fullUser.id } } as AuthReq;
 
       const result = await controller.me(req);
@@ -41,12 +41,14 @@ describe('UsersController', () => {
 
     it('throws UnauthorizedException when req.user is missing', async () => {
       const { controller } = setup();
-      await expect(controller.me({} as AuthReq)).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(controller.me({} as AuthReq)).rejects.toBeInstanceOf(
+        UnauthorizedException,
+      );
     });
 
     it('throws UnauthorizedException when user not found in db', async () => {
       const { usersService, controller } = setup();
-      (usersService.findOneById as jest.Mock).mockResolvedValue(null);
+      usersService.findOneById.mockResolvedValue(null);
       await expect(
         controller.me({ user: { id: 'ghost' } } as AuthReq),
       ).rejects.toBeInstanceOf(UnauthorizedException);
@@ -57,19 +59,19 @@ describe('UsersController', () => {
     it('updates stellarPublicKey and returns profile without password', async () => {
       const stellar = 'GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGZBL0NC4LS6LD2XHYACR7';
       const { usersService, controller } = setup();
-      (usersService.updateProfile as jest.Mock).mockResolvedValue({
+      usersService.updateProfile.mockResolvedValue({
         ...fullUser,
         stellarPublicKey: stellar,
       });
       const req = { user: { id: fullUser.id } } as AuthReq;
+      const dto = { stellarPublicKey: stellar };
 
-      const result = await controller.updateMe(req, { stellarPublicKey: stellar });
+      const result: UserProfile = await controller.updateMe(req, dto);
 
       expect(result).not.toHaveProperty('password');
       expect(result.stellarPublicKey).toBe(stellar);
-      expect(usersService.updateProfile).toHaveBeenCalledWith(fullUser.id, {
-        stellarPublicKey: stellar,
-      });
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(usersService.updateProfile).toHaveBeenCalledWith(fullUser.id, dto);
     });
 
     it('throws UnauthorizedException when req.user is missing', async () => {
@@ -81,14 +83,16 @@ describe('UsersController', () => {
 
     it('propagates ConflictException from service when key is taken', async () => {
       const { usersService, controller } = setup();
-      (usersService.updateProfile as jest.Mock).mockRejectedValue(
-        new ConflictException('Stellar public key already registered to another account'),
+      usersService.updateProfile.mockRejectedValue(
+        new ConflictException(
+          'Stellar public key already registered to another account',
+        ),
       );
       await expect(
-        controller.updateMe(
-          { user: { id: fullUser.id } } as AuthReq,
-          { stellarPublicKey: 'GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGZBL0NC4LS6LD2XHYACR7' },
-        ),
+        controller.updateMe({ user: { id: fullUser.id } } as AuthReq, {
+          stellarPublicKey:
+            'GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGZBL0NC4LS6LD2XHYACR7',
+        }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
   });
