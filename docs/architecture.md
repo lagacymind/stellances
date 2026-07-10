@@ -35,15 +35,15 @@ Stellance is a three-tier application sitting on top of the Stellar blockchain. 
 │  ┌─────────────────────────────────▼───────────────────────────────┐  │
 │  │  API Gateway (global prefix /api)                               │  │
 │  │  Helmet · CORS · ValidationPipe · Swagger                       │  │
-│  ├─────────────┬──────────────┬────────────────┬───────────────────┤  │
-│  │  AuthModule │  UsersModule │  (Jobs module) │  (EscrowModule)   │  │
-│  │  JWT + RT   │  /users/me   │  planned       │  planned          │  │
-│  └──────┬──────┴──────┬───────┴────────────────┴──────────┬────────┘  │
-│         │             │                                    │           │
-│  ┌──────▼─────────────▼──────────────┐      ┌─────────────▼────────┐  │
-│  │  Prisma 7 (ORM)                   │      │  @stellar/stellar-sdk │  │
-│  │  PostgreSQL                       │      │  Horizon REST API     │  │
-│  └───────────────────────────────────┘      └─────────────┬────────┘  │
+│  ├──────────┬───────────┬──────────────┬────────────┬──────────────┤  │
+│  │ Auth     │  Users    │  Jobs        │ Contracts  │  Escrow      │  │
+│  │ JWT + RT │ /users/me │ CRUD ✅      │ +Milestone │  Service ✅  │  │
+│  └────┬─────┴─────┬─────┴──────────────┴────────────┴──────┬───────┘  │
+│       │           │                                         │          │
+│  ┌────▼───────────▼────────────────┐      ┌────────────────▼───────┐  │
+│  │  Prisma 7 (ORM)                 │      │  @stellar/stellar-sdk  │  │
+│  │  PostgreSQL                     │      │  Horizon + Soroban RPC │  │
+│  └─────────────────────────────────┘      └────────────────┬───────┘  │
 └────────────────────────────────────────────────────────── │ ──────────┘
                                                             │ XDR / HTTPS
 ┌────────────────────────────────────────────────────────── │ ──────────┐
@@ -54,11 +54,14 @@ Stellance is a three-tier application sitting on top of the Stellar blockchain. 
 │  ├─────────────────────────────────────────────────────────────────┤  │
 │  │  Soroban Runtime                                                │  │
 │  │  ┌─────────────────────────────────────────────────────────┐   │  │
-│  │  │  EscrowContract (WASM)                                  │   │  │
+│  │  │  EscrowContract (WASM) — complete, test-covered ✅      │   │  │
 │  │  │  fund(contract_id, client, freelancer, amount, token)   │   │  │
+│  │  │  release_milestone(contract_id, caller, amount)         │   │  │
 │  │  │  release(contract_id, caller)                           │   │  │
 │  │  │  refund(contract_id, caller)                            │   │  │
 │  │  │  dispute(contract_id, caller)                           │   │  │
+│  │  │  resolve_dispute(contract_id, caller, decision, bps)    │   │  │
+│  │  │  get_escrow(contract_id) → Option<EscrowEntry>          │   │  │
 │  │  └─────────────────────────────────────────────────────────┘   │  │
 │  └─────────────────────────────────────────────────────────────────┘  │
 └───────────────────────────────────────────────────────────────────────┘
@@ -71,9 +74,9 @@ Stellance is a three-tier application sitting on top of the Stellar blockchain. 
 | Component | Path | Technology | Status |
 |-----------|------|-----------|--------|
 | Frontend app | `stellance/frontend/` | Next.js 16, Tailwind, stellar-sdk | Landing page + demo ✅ |
-| Backend API | `stellance/backend/` | NestJS 11, Prisma 7, PostgreSQL | Auth + users ✅ |
-| Soroban contracts | `stellance/Contracts/` | Rust, soroban-sdk | Scaffold 🚧 |
-| CI | `.github/workflows/ci.yml` | GitHub Actions | Lint, test, WASM build ✅ |
+| Backend API | `stellance/backend/` | NestJS 11, Prisma 7, PostgreSQL | Auth, Users, Jobs, Contracts, Escrow service ✅ |
+| Soroban contracts | `stellance/Contracts/` | Rust, soroban-sdk 21.x | Full escrow contract, 30 tests, WASM build ✅ |
+| CI | `.github/workflows/ci.yml` | GitHub Actions | Lint, test (backend + contracts), WASM build ✅ |
 
 ---
 
@@ -111,21 +114,30 @@ The frontend communicates with the backend via `NEXT_PUBLIC_API_URL`. Stellar tr
 
 ```
 stellance/backend/src/
-├── main.ts                 # App bootstrap
-├── app.module.ts           # Root module
-├── auth/                   # Auth module (complete)
-│   ├── auth.controller.ts  # POST /register, /login, /refresh, /logout, /logout-all
-│   ├── auth.service.ts     # Token issuance, rotation, revocation
-│   ├── strategies/         # Passport local + JWT strategies
-│   ├── guards/             # JwtAuthGuard (global default), LocalAuthGuard
-│   └── dto/                # RegisterDto, LoginDto (class-validator)
-├── users/                  # Users module (partial)
-│   ├── users.controller.ts # GET /users/me
-│   └── users.service.ts    # findOneByEmail, findOneById, create
-├── prisma/                 # Database wrapper
-│   └── prisma.service.ts   # PrismaClient singleton with lifecycle hooks
+├── main.ts                      # App bootstrap (Helmet, CORS, Swagger, ValidationPipe)
+├── app.module.ts                # Root module
+├── auth/                        # Auth module ✅
+│   ├── auth.controller.ts       # POST /register, /login, /refresh, /logout, /logout-all
+│   ├── auth.service.ts          # Token issuance, rotation, revocation
+│   ├── strategies/              # Passport local + JWT strategies
+│   ├── guards/                  # JwtAuthGuard (global default), LocalAuthGuard
+│   └── dto/                     # RegisterDto, LoginDto (class-validator + Swagger)
+├── users/                       # Users module ✅
+│   ├── users.controller.ts      # GET /users/me, PATCH /users/me
+│   └── users.service.ts         # findOneByEmail, findOneById, create, updateProfile
+├── jobs/                        # Jobs module ✅
+│   ├── jobs.controller.ts       # GET /jobs, GET /jobs/:id, POST /jobs, PATCH /jobs/:id, POST /jobs/:id/cancel
+│   └── jobs.service.ts          # CRUD + status transitions
+├── contracts/                   # Contracts + Milestones module ✅
+│   ├── contracts.controller.ts  # POST /contracts, GET /contracts/:id, PATCH milestones, dispute, resolve, cancel
+│   ├── contracts.service.ts     # Full payment lifecycle (fund XDR, approve milestone, dispute, resolve)
+│   └── dto/                     # CreateContractDto, ConfirmFundDto, DisputeDto, ResolveDisputeDto
+├── escrow/                      # Stellar/Soroban integration ✅
+│   └── escrow.service.ts        # buildFundXdr, submitRelease/Refund/Dispute/ResolveDispute, verifyTransaction
+├── prisma/                      # Database wrapper
+│   └── prisma.service.ts        # PrismaClient singleton with lifecycle hooks
 └── test-utils/
-    └── prisma.mock.ts      # In-memory Prisma mock for unit tests
+    └── prisma.mock.ts           # In-memory Prisma mock for unit tests
 ```
 
 All routes are prefixed `/api`. The `JwtAuthGuard` is applied globally; routes that need no auth are decorated with `@Public()`.
@@ -189,68 +201,75 @@ The frontend demo uses `stellar-sdk` directly in the browser for the keypair + F
 
 ### Soroban Smart Contracts
 
-> **Current status:** The contract in `stellance/Contracts/src/lib.rs` is a development scaffold demonstrating the on-chain event pattern. The full escrow contract is in active development.
+> **Current status:** The contract in `stellance/Contracts/src/lib.rs` is **complete and test-covered**. It compiles to WASM and implements the full escrow state machine. Testnet deployment is the next step.
 
 **Why Soroban for escrow?**
 
 A naive approach would have the Stellance platform hold client funds in a company-controlled Stellar account. This is custodial — the platform can theoretically take the funds. Soroban contracts eliminate this: the escrow logic is code on the blockchain. Neither the client, the freelancer, nor Stellance can move funds except through the contract's defined paths.
 
-**Planned contract interface:**
+**Implemented contract interface:**
 
 ```rust
-/// Lock client funds into escrow for a specific contract.
-/// Only callable once per contract_id.
-pub fn fund(
-    env: Env,
-    contract_id: Symbol,   // Stellance DB contract UUID
-    client: Address,       // Must authorize this call
-    freelancer: Address,   // Recipient on release
-    amount: i128,          // In stroops (1 XLM = 10_000_000 stroops)
-    token: Address,        // XLM native or any Stellar asset contract
-) -> Result<(), EscrowError>
+/// Lock client funds into escrow. amount must be > 0. Only callable once per contract_id.
+pub fn fund(env, contract_id: Symbol, client, freelancer, admin, amount: i128, token) -> Result<(), EscrowError>
 
-/// Release escrowed funds to the freelancer.
-/// Callable by the client, or by the platform admin (dispute resolution).
-pub fn release(
-    env: Env,
-    contract_id: Symbol,
-    caller: Address,       // Must be client or admin
-) -> Result<(), EscrowError>
+/// Release milestone_amount to the freelancer. Caller must be client or admin.
+pub fn release_milestone(env, contract_id: Symbol, caller, milestone_amount: i128) -> Result<(), EscrowError>
 
-/// Refund escrowed funds to the client.
-/// Callable by the freelancer, or by the platform admin (dispute resolution).
-pub fn refund(
-    env: Env,
-    contract_id: Symbol,
-    caller: Address,       // Must be freelancer or admin
-) -> Result<(), EscrowError>
+/// Release all remaining funds to the freelancer. Caller must be client or admin.
+pub fn release(env, contract_id: Symbol, caller) -> Result<(), EscrowError>
 
-/// Mark an escrow as disputed. Freezes funds pending admin resolution.
-/// Callable by either party.
-pub fn dispute(
-    env: Env,
-    contract_id: Symbol,
-    caller: Address,       // Must be client or freelancer
-) -> Result<(), EscrowError>
+/// Return all remaining funds to the client. Caller must be freelancer or admin.
+pub fn refund(env, contract_id: Symbol, caller) -> Result<(), EscrowError>
+
+/// Freeze funds pending admin arbitration. Caller must be client or freelancer.
+pub fn dispute(env, contract_id: Symbol, caller) -> Result<(), EscrowError>
+
+/// Resolve a disputed escrow. Admin-only. decision: ReleaseToFreelancer | RefundToClient | Split(bps).
+/// Split is atomic — both transfers happen in the same Soroban invocation.
+pub fn resolve_dispute(env, contract_id: Symbol, caller, decision: DisputeDecision, freelancer_bps: u32) -> Result<(), EscrowError>
+
+/// Read-only view — returns None if not found. No auth required.
+pub fn get_escrow(env, contract_id: Symbol) -> Option<EscrowEntry>
 ```
 
 **Contract storage model:**
 
-Each escrow is stored as a persistent entry keyed by `contract_id`:
-
 ```rust
+// Storage key — typed enum prevents collisions with future storage types
+enum DataKey { Escrow(Symbol) }
+
 struct EscrowEntry {
     client: Address,
     freelancer: Address,
-    amount: i128,
+    total_amount: i128,
+    released_amount: i128,
     token: Address,
-    status: EscrowStatus,  // Funded | Released | Refunded | Disputed
+    status: EscrowStatus,  // Funded | Released | Refunded | Disputed | Resolved
+    admin: Address,
 }
 ```
 
+**`EscrowStatus::Resolved`** is set when a dispute is resolved via `Split`. It is distinct from `Released` (100% to freelancer) and `Refunded` (100% to client) so that `get_escrow()` callers can distinguish the outcome accurately.
+
+**contract_id encoding:**
+
+Soroban `Symbol` is limited to 32 characters. PostgreSQL UUIDs are 36 chars with hyphens. The backend's `EscrowService.contractIdToSymbol()` strips hyphens from the UUID, yielding a 32-char hex string. All Soroban calls pass this encoded value as `contract_id`.
+
 **Contract deployment:**
 
-The compiled WASM is deployed to the Stellar testnet. The backend stores the deployed contract address in an environment variable (`ESCROW_CONTRACT_ID`). When the backend needs to fund or release escrow, it builds a Soroban invocation transaction and either signs it server-side (for platform-authorised operations) or returns an unsigned XDR envelope for the client to sign via Freighter.
+```bash
+# Build WASM
+cargo build --target wasm32-unknown-unknown --release
+
+# Deploy to testnet
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/stellance_contract.wasm \
+  --source <admin-secret-key> \
+  --network testnet
+```
+
+Set the resulting contract address as `ESCROW_CONTRACT_ID` in the backend's `.env`.
 
 ---
 
@@ -324,16 +343,19 @@ Refresh tokens stored in `localStorage` are accessible to JavaScript and vulnera
 
 ## What Is Not Yet Built
 
-| Feature | Needed for | Tracked in |
-|---------|-----------|-----------|
-| Jobs API (CRUD, apply) | Core marketplace | GitHub Issues |
-| Contracts API (create, approve, dispute) | Core payment flow | GitHub Issues |
-| Milestone API | Milestone payments | GitHub Issues |
-| Escrow service (backend) | Stellar tx building | GitHub Issues |
-| Full Soroban escrow contract | Trustless custody | GitHub Issues |
-| Freighter wallet integration (frontend) | User signing | GitHub Issues |
-| Marketplace UI pages | User-facing product | GitHub Issues |
-| PATCH /users/me | Save Stellar wallet address | GitHub Issues |
-| docker-compose | Local dev ergonomics | ✅ Added (`docker-compose.yml` in repo root) |
+| Feature | Needed for | Status |
+|---------|-----------|--------|
+| Freighter wallet integration (frontend) | User signing — non-custodial fund flow | 🔲 Next |
+| Marketplace UI pages | User-facing product | 🔲 Next |
+| Soroban testnet deployment | End-to-end integration test | 🔲 Next |
+| Horizon event subscription | Real-time DB sync from on-chain events | 🔲 Planned |
+| SEP-24 anchor on/off-ramp | Fiat deposit/withdrawal flow | 🔲 Planned |
+| Jobs API (CRUD, apply) | Core marketplace | ✅ Implemented |
+| Contracts API (create, approve, dispute, resolve) | Core payment flow | ✅ Implemented |
+| Milestone API | Milestone payments | ✅ Implemented |
+| Escrow service (backend — Soroban tx building) | Stellar integration | ✅ Implemented |
+| Full Soroban escrow contract (all functions, 30 tests) | Trustless custody | ✅ Implemented |
+| PATCH /users/me | Save Stellar wallet address | ✅ Implemented |
+| docker-compose | Local dev ergonomics | ✅ Added |
 
-See the [CHANGELOG](../CHANGELOG.md) for what has been shipped.
+See the [CHANGELOG](../CHANGELOG.md) for the full history of what has shipped.

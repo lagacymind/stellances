@@ -188,11 +188,12 @@ export class ContractsService {
   /**
    * PATCH /contracts/:id/milestones/:mid/approve
    *
-   * 1. Mark APPROVED
-   * 2. Submit release_milestone() on Soroban (admin-signed, ~5s settlement)
-   * 3. Record Payment with stellarTxHash
-   * 4. Mark PAID
-   * 5. Auto-complete contract if all milestones PAID
+   * 1. Submit release_milestone() on Soroban (admin-signed, ~5s settlement)
+   * 2. On success, atomically mark APPROVED → PAID and record Payment
+   * 3. Auto-complete contract if all milestones PAID
+   *
+   * State is only committed after the on-chain call succeeds. If Soroban
+   * throws, the milestone stays IN_REVIEW and can be retried.
    */
   async approveMilestone(
     contractId: string,
@@ -210,11 +211,8 @@ export class ContractsService {
     if (milestone.status !== MilestoneStatus.IN_REVIEW)
       throw new BadRequestException('Milestone must be IN_REVIEW to approve');
 
-    await this.prisma.milestone.update({
-      where: { id: milestoneId },
-      data: { status: MilestoneStatus.APPROVED },
-    });
-
+    // Submit on-chain BEFORE committing any DB state change.
+    // If this throws, the milestone stays IN_REVIEW and the client can retry.
     const amountStroops = BigInt(
       Math.round(Number(milestone.amount) * 10_000_000),
     );
@@ -223,7 +221,12 @@ export class ContractsService {
       amountStroops,
     });
 
+    // On-chain success — commit all state changes atomically
     await this.prisma.$transaction(async (tx) => {
+      await tx.milestone.update({
+        where: { id: milestoneId },
+        data: { status: MilestoneStatus.PAID },
+      });
       await tx.payment.create({
         data: {
           contractId,
@@ -231,10 +234,6 @@ export class ContractsService {
           amount: milestone.amount,
           stellarTxHash: txHash,
         },
-      });
-      await tx.milestone.update({
-        where: { id: milestoneId },
-        data: { status: MilestoneStatus.PAID },
       });
     });
 
@@ -246,6 +245,23 @@ export class ContractsService {
     });
   }
 
+  /**
+   * POST /contracts/:id/dispute
+   *
+   * 1. Validate the caller is a party to the contract and it is ACTIVE.
+   * 2. Submit dispute() on-chain — this freezes the escrow so neither
+   *    release nor refund can be called until an admin resolves it.
+   * 3. Only after the on-chain call succeeds, update the DB status to DISPUTED.
+   *
+   * If the contract has not yet been funded (no escrowTxHash), the on-chain
+   * call is skipped — the escrow entry doesn't exist yet and there's nothing
+   * to freeze.
+   *
+   * Note: submitDispute() currently uses the admin key as the on-chain caller
+   * because the backend submits the tx server-side. The correct long-term
+   * approach is to return unsigned XDR for the party to sign via Freighter
+   * (matching buildFundXdr). This is tracked as a follow-up.
+   */
   async dispute(contractId: string, callerId: string, reason: string) {
     void reason; // stored off-chain in a future disputes table
     const contract = await this._getContractOrThrow(contractId);
@@ -253,6 +269,13 @@ export class ContractsService {
       throw new ForbiddenException('Only contract parties can raise a dispute');
     if (contract.status !== ContractStatus.ACTIVE)
       throw new BadRequestException('Contract must be ACTIVE to dispute');
+
+    // Freeze the on-chain escrow BEFORE committing the DB state change.
+    // If the Soroban call fails, the DB stays ACTIVE and the caller can retry.
+    // Skip if the escrow hasn't been funded yet — no on-chain entry exists.
+    if (contract.escrowTxHash) {
+      await this.escrow.submitDispute(contractId);
+    }
 
     return this.prisma.contract.update({
       where: { id: contractId },
@@ -390,8 +413,17 @@ export class ContractsService {
         select: { amount: true },
       }),
     ]);
-    const total = milestones.reduce((s, m) => s + Number(m.amount), 0);
-    const paid = payments.reduce((s, p) => s + Number(p.amount), 0);
-    return Math.max(0, total - paid);
+    // Use string-based arithmetic to avoid floating-point precision loss on
+    // Prisma Decimal(18,7) values. Multiply to integers, subtract, divide back.
+    const SCALE = 10_000_000; // 7 decimal places
+    const totalCents = milestones.reduce(
+      (s, m) => s + Math.round(Number(m.amount.toString()) * SCALE),
+      0,
+    );
+    const paidCents = payments.reduce(
+      (s, p) => s + Math.round(Number(p.amount.toString()) * SCALE),
+      0,
+    );
+    return Math.max(0, (totalCents - paidCents) / SCALE);
   }
 }

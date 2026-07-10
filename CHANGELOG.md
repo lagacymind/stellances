@@ -10,15 +10,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - `docker-compose.yml` — PostgreSQL 16 service for local development (resolves references in multiple docs that pointed to a missing file)
 - `stellance/frontend/.env.local.example` — environment template; contributors now run `cp .env.local.example .env.local` instead of creating the file manually
-- `PATCH /users/me` documented in `docs/api-reference.md` as a planned endpoint (needed to save Stellar public key after wallet connection)
+- `PATCH /users/me` implemented in `users.controller.ts` and `users.service.ts` — saves Stellar public key and display name; validated with `@Matches(/^G[A-Z2-7]{55}$/)` to reject malformed keys
 - Freighter wallet setup guide added to `docs/local-development.md` (step 6)
 - `@ApiProperty` / `@ApiPropertyOptional` decorators added to `RegisterDto` and `LoginDto` — Swagger UI at `/docs` now renders fully populated request body schemas with examples
-- `src/users/users.controller.spec.ts` — unit test suite for `GET /users/me` covering: happy path (returns profile without password), missing `req.user`, missing `req.user.id`, user not found in DB, and password-omission guarantee
+- `src/users/users.controller.spec.ts` — unit test suite for `GET /users/me` and `PATCH /users/me` covering: happy path, missing `req.user`, user not found in DB, password-omission guarantee, `ConflictException` propagation for duplicate Stellar keys
+- **Jobs module** (`src/jobs/`) — full CRUD: `GET /jobs`, `GET /jobs/:id`, `POST /jobs`, `PATCH /jobs/:id`, `POST /jobs/:id/cancel`; role-based access (client owns job); unit-tested
+- **Contracts + Milestones module** (`src/contracts/`) — `POST /contracts` (creates contract + milestones, returns unsigned fund XDR for Freighter); `POST /contracts/:id/confirm-fund` (verifies tx hash on Horizon); `PATCH .../milestones/:mid/submit`; `PATCH .../milestones/:mid/approve` (submits `release_milestone()` on-chain then records Payment); `POST .../dispute`; `PATCH admin/:id/resolve`; `POST .../cancel`; 20+ unit tests including on-chain-before-DB ordering guarantees
+- **Escrow service** (`src/escrow/escrow.service.ts`) — `buildFundXdr` (unsigned XDR for Freighter), `submitReleaseMilestone`, `submitRelease`, `submitRefund`, `submitDispute`, `submitResolveDispute`, `verifyTransaction`; all Soroban call sites use `contractIdToSymbol()` to safely encode UUIDs as 32-char Symbols
+- **`contractIdToSymbol()` helper** — strips hyphens from PostgreSQL UUIDs to produce a valid Soroban Symbol key (≤32 chars). Applied at every Soroban call site in EscrowService; documented in both the backend service and the contract module doc comment
+- **Full Soroban escrow contract** (`stellance/Contracts/src/lib.rs`) — `fund`, `release_milestone`, `release`, `refund`, `dispute`, `resolve_dispute`, `get_escrow`, `ping`; 30 tests covering all state transitions, authorization checks, arithmetic edge cases, and dispute resolution splits
+- **`EscrowStatus::Resolved`** variant — split dispute resolution now sets `Resolved` rather than `Released`, accurately reflecting that funds were split between parties
+- **`EscrowError::InvalidAmount`** — `fund()` now rejects zero and negative amounts with a dedicated error code
+- **`DataKey::Escrow(Symbol)`** typed storage key — namespaces escrow entries in persistent storage, preventing collisions if additional storage types are added in future
+- JWT strategy now throws `InternalServerErrorException` at startup if `JWT_SECRET` is unset, preventing silent use of a hardcoded fallback secret in misconfigured deployments
 
 ### Changed
 - Landing page `Why Stellar` section updated: "Soroban smart contracts are next on the roadmap" replaced with accurate status — contract is complete, test-covered, and compiles to WASM; integration is in progress
 - Landing page stack block: `"soroban (planned)"` → `"soroban  rust  wasm"`
 - Landing page stats block: `"Smart contracts (roadmap)"` → `"Escrow smart contract"`; `"Escrow via Horizon"` → `"Soroban escrow contract"`; Soroban stat now rendered in active colour (was greyed-out)
+- `docs/architecture.md` — component map, architecture diagram, backend module tree, Soroban section, and "What Is Not Yet Built" table all updated to reflect current implementation state
 
 ### Fixed
 - `CONTRIBUTING.md` — response format examples corrected from `{success:true, data:{...}}` to the actual flat format (`{message, access_token, user}`)
@@ -28,14 +38,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `stellance/frontend/README.md` — quick start now uses `cp .env.local.example .env.local`
 - `docs/local-development.md` — Docker section rewritten to use `docker compose up -d`; frontend setup uses `.env.local.example`
 - `docs/architecture.md` — docker-compose row in "What Is Not Yet Built" table updated to ✅ Added
-
-### Planned
-- Soroban escrow contract: `fund`, `release`, `refund`, `dispute` functions
-- Jobs API endpoints (list, create, apply)
-- Contracts API endpoints (create, approve, dispute)
-- Freighter wallet connection in frontend
-- Frontend marketplace pages (jobs list, job detail, dashboard)
-- `PATCH /users/me` backend implementation
+- `resolve_dispute` Split arm previously set `EscrowStatus::Released` — corrected to `EscrowStatus::Resolved` so `get_escrow()` accurately reflects split outcomes
+- `ContractsService.dispute()` previously only updated the DB without freezing the on-chain escrow — now calls `escrow.submitDispute()` before the DB update when the escrow is funded, preserving the trustless guarantee
 
 ---
 
