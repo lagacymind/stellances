@@ -84,6 +84,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 // ─── Auth API ─────────────────────────────────────────────────────────────────
 
+export type UserRole = "FREELANCER" | "CLIENT";
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -91,4 +93,23 @@ export interface LoginPayload {
 
 export async function loginUser(payload: LoginPayload): Promise<LoginResponse> {
   return post<LoginResponse>("/auth/login", payload);
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}
+
+export interface RegisterResponse {
+  message: string;
+  access_token: string;
+  user: AuthUser;
+}
+
+export async function registerUser(
+  payload: RegisterPayload
+): Promise<RegisterResponse> {
+  return post<RegisterResponse>("/auth/register", payload);
 }
