@@ -1,4 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as StellarSdk from '@stellar/stellar-sdk';
 
@@ -40,18 +44,24 @@ export class EscrowService {
 
     this.networkPassphrase =
       config.get<string>('STELLAR_NETWORK_PASSPHRASE') ??
-      (network === 'mainnet' ? StellarSdk.Networks.PUBLIC : StellarSdk.Networks.TESTNET);
+      (network === 'mainnet'
+        ? StellarSdk.Networks.PUBLIC
+        : StellarSdk.Networks.TESTNET);
 
     this.escrowContractId = config.get<string>('ESCROW_CONTRACT_ID') ?? '';
 
     const adminSecret = config.get<string>('STELLAR_ADMIN_SECRET');
-    this.adminKeypair = adminSecret ? StellarSdk.Keypair.fromSecret(adminSecret) : null;
+    this.adminKeypair = adminSecret
+      ? StellarSdk.Keypair.fromSecret(adminSecret)
+      : null;
 
     if (!this.escrowContractId) {
       this.logger.warn('ESCROW_CONTRACT_ID not set — Soroban calls will fail');
     }
     if (!this.adminKeypair) {
-      this.logger.warn('STELLAR_ADMIN_SECRET not set — admin operations will fail');
+      this.logger.warn(
+        'STELLAR_ADMIN_SECRET not set — admin operations will fail',
+      );
     }
   }
 
@@ -107,7 +117,9 @@ export class EscrowService {
           'fund',
           StellarSdk.nativeToScVal(params.contractId, { type: 'symbol' }),
           StellarSdk.nativeToScVal(params.clientPublicKey, { type: 'address' }),
-          StellarSdk.nativeToScVal(params.freelancerPublicKey, { type: 'address' }),
+          StellarSdk.nativeToScVal(params.freelancerPublicKey, {
+            type: 'address',
+          }),
           StellarSdk.nativeToScVal(params.adminPublicKey, { type: 'address' }),
           StellarSdk.nativeToScVal(params.amountStroops, { type: 'i128' }),
           StellarSdk.nativeToScVal(params.tokenContractId, { type: 'address' }),
@@ -164,7 +176,11 @@ export class EscrowService {
     decision: 0 | 1 | 2;
     freelancerBps: number;
   }): Promise<string> {
-    const variants = ['ReleaseToFreelancer', 'RefundToClient', 'Split'] as const;
+    const variants = [
+      'ReleaseToFreelancer',
+      'RefundToClient',
+      'Split',
+    ] as const;
     return this._submitAdminInvocation('resolve_dispute', [
       StellarSdk.nativeToScVal(params.contractId, { type: 'symbol' }),
       StellarSdk.nativeToScVal(this.getAdminPublicKey(), { type: 'address' }),

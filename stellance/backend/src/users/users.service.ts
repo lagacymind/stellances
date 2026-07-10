@@ -45,7 +45,9 @@ export class UsersService {
         select: { id: true },
       });
       if (existing && existing.id !== id) {
-        throw new ConflictException('Stellar public key already registered to another account');
+        throw new ConflictException(
+          'Stellar public key already registered to another account',
+        );
       }
     }
 
@@ -53,7 +55,9 @@ export class UsersService {
       where: { id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
-        ...(data.stellarPublicKey !== undefined && { stellarPublicKey: data.stellarPublicKey }),
+        ...(data.stellarPublicKey !== undefined && {
+          stellarPublicKey: data.stellarPublicKey,
+        }),
       },
     });
   }
