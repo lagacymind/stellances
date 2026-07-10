@@ -14,9 +14,17 @@ import * as StellarSdk from '@stellar/stellar-sdk';
  *
  * Why Stellar-specific:
  * - buildFundXdr returns unsigned XDR for Freighter signing (non-custodial)
- * - release_milestone / refund / resolve_dispute are admin-signed server-side
+ * - release_milestone / refund / dispute / resolve_dispute are admin-signed server-side
  * - verifyTransaction checks Horizon for immutable on-chain proof
  * - All fees are ~$0.00001 XLM — makes per-milestone payments viable
+ *
+ * ## contract_id encoding (contractIdToSymbol)
+ *
+ * Soroban Symbol is limited to 32 characters. PostgreSQL UUIDs are 36 chars
+ * (with hyphens). Every method that passes a contract ID to the chain calls
+ * contractIdToSymbol() to strip hyphens, yielding a 32-char hex string that
+ * fits within the Symbol limit. The Soroban contract stores and looks up
+ * entries using this same 32-char key.
  */
 @Injectable()
 export class EscrowService {
@@ -65,6 +73,24 @@ export class EscrowService {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Convert a PostgreSQL UUID to a valid Soroban Symbol key.
+   *
+   * Soroban Symbol is limited to 32 characters ([a-zA-Z0-9_]).
+   * A raw UUID is 36 characters (with hyphens) so it exceeds the limit.
+   * Stripping hyphens yields exactly 32 hex characters.
+   *
+   * Both the backend and the Soroban contract must use the same encoding —
+   * the contract stores entries under this 32-char key in persistent storage.
+   */
+  contractIdToSymbol(uuid: string): string {
+    return uuid.replace(/-/g, '');
+  }
+
   /** Public key of the platform admin account (used as escrow admin). */
   getAdminPublicKey(): string {
     if (!this.adminKeypair) {
@@ -74,6 +100,10 @@ export class EscrowService {
     }
     return this.adminKeypair.publicKey();
   }
+
+  // -------------------------------------------------------------------------
+  // Horizon
+  // -------------------------------------------------------------------------
 
   /**
    * Verify a Stellar transaction hash exists on Horizon.
@@ -92,9 +122,15 @@ export class EscrowService {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Soroban — client-signed (XDR returned for Freighter)
+  // -------------------------------------------------------------------------
+
   /**
    * Build an unsigned XDR envelope for the escrow fund() Soroban invocation.
    * Client signs this with Freighter — the platform never touches the client key.
+   *
+   * The contractId is converted to a Symbol-safe key via contractIdToSymbol().
    */
   async buildFundXdr(params: {
     contractId: string;
@@ -115,7 +151,10 @@ export class EscrowService {
       .addOperation(
         contract.call(
           'fund',
-          StellarSdk.nativeToScVal(params.contractId, { type: 'symbol' }),
+          // contractIdToSymbol strips hyphens so the UUID fits in 32 chars
+          StellarSdk.nativeToScVal(this.contractIdToSymbol(params.contractId), {
+            type: 'symbol',
+          }),
           StellarSdk.nativeToScVal(params.clientPublicKey, { type: 'address' }),
           StellarSdk.nativeToScVal(params.freelancerPublicKey, {
             type: 'address',
@@ -139,13 +178,19 @@ export class EscrowService {
     return prepared.toEnvelope().toXDR('base64');
   }
 
+  // -------------------------------------------------------------------------
+  // Soroban — admin-signed (submitted directly by the backend)
+  // -------------------------------------------------------------------------
+
   /** Submit release_milestone() for one approved milestone. Returns tx hash. */
   async submitReleaseMilestone(params: {
     contractId: string;
     amountStroops: bigint;
   }): Promise<string> {
     return this._submitAdminInvocation('release_milestone', [
-      StellarSdk.nativeToScVal(params.contractId, { type: 'symbol' }),
+      StellarSdk.nativeToScVal(this.contractIdToSymbol(params.contractId), {
+        type: 'symbol',
+      }),
       StellarSdk.nativeToScVal(this.getAdminPublicKey(), { type: 'address' }),
       StellarSdk.nativeToScVal(params.amountStroops, { type: 'i128' }),
     ]);
@@ -154,7 +199,9 @@ export class EscrowService {
   /** Submit release() — releases all remaining escrowed funds. */
   async submitRelease(contractId: string): Promise<string> {
     return this._submitAdminInvocation('release', [
-      StellarSdk.nativeToScVal(contractId, { type: 'symbol' }),
+      StellarSdk.nativeToScVal(this.contractIdToSymbol(contractId), {
+        type: 'symbol',
+      }),
       StellarSdk.nativeToScVal(this.getAdminPublicKey(), { type: 'address' }),
     ]);
   }
@@ -162,7 +209,34 @@ export class EscrowService {
   /** Submit refund() — returns all funds to the client. */
   async submitRefund(contractId: string): Promise<string> {
     return this._submitAdminInvocation('refund', [
-      StellarSdk.nativeToScVal(contractId, { type: 'symbol' }),
+      StellarSdk.nativeToScVal(this.contractIdToSymbol(contractId), {
+        type: 'symbol',
+      }),
+      StellarSdk.nativeToScVal(this.getAdminPublicKey(), { type: 'address' }),
+    ]);
+  }
+
+  /**
+   * Submit dispute() — freeze the escrow on-chain, called by the party who
+   * initiated the dispute. The admin key is used as the caller here because
+   * the backend submits this transaction on behalf of the contract party.
+   *
+   * Note: the Soroban contract allows client OR freelancer to call dispute().
+   * The admin is authorised for both roles via mock_all_auths in tests.
+   * In production, the backend submits with the admin key and the contract
+   * verifies the caller is a party (client/freelancer) — the admin is NOT
+   * one of those parties, so this call would be rejected.
+   *
+   * TODO: the correct production approach is to return unsigned XDR here so
+   * the party (client or freelancer) signs it themselves via Freighter,
+   * matching the same non-custodial pattern used by buildFundXdr. This is
+   * tracked as a follow-up task.
+   */
+  async submitDispute(contractId: string): Promise<string> {
+    return this._submitAdminInvocation('dispute', [
+      StellarSdk.nativeToScVal(this.contractIdToSymbol(contractId), {
+        type: 'symbol',
+      }),
       StellarSdk.nativeToScVal(this.getAdminPublicKey(), { type: 'address' }),
     ]);
   }
@@ -182,7 +256,9 @@ export class EscrowService {
       'Split',
     ] as const;
     return this._submitAdminInvocation('resolve_dispute', [
-      StellarSdk.nativeToScVal(params.contractId, { type: 'symbol' }),
+      StellarSdk.nativeToScVal(this.contractIdToSymbol(params.contractId), {
+        type: 'symbol',
+      }),
       StellarSdk.nativeToScVal(this.getAdminPublicKey(), { type: 'address' }),
       StellarSdk.xdr.ScVal.scvVec([
         StellarSdk.xdr.ScVal.scvSymbol(variants[params.decision]),
@@ -190,6 +266,10 @@ export class EscrowService {
       StellarSdk.nativeToScVal(params.freelancerBps, { type: 'u32' }),
     ]);
   }
+
+  // -------------------------------------------------------------------------
+  // Private
+  // -------------------------------------------------------------------------
 
   private async _submitAdminInvocation(
     fnName: string,

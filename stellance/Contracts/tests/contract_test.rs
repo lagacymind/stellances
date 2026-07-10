@@ -50,6 +50,9 @@ impl Fixture {
             &(env.ledger().sequence() + 1_000),
         );
 
+        // Symbol max is 32 chars; this is well within that limit.
+        // The backend uses contractIdToSymbol() to derive a ≤32-char key from
+        // the full UUID — see escrow.service.ts.
         let contract_id = Symbol::new(&env, "contract_abc1");
 
         Fixture { env, escrow_id, contract_id, client: client_addr, freelancer: freelancer_addr, admin: admin_addr, token_addr }
@@ -94,6 +97,24 @@ fn fund_double_funding_returns_error() {
         &f.contract_id, &f.client, &f.freelancer, &f.admin, &500, &f.token_addr,
     );
     assert_eq!(result, Err(Ok(EscrowError::AlreadyFunded)));
+}
+
+#[test]
+fn fund_zero_amount_is_rejected() {
+    let f = Fixture::setup();
+    let result = f.escrow().try_fund(
+        &f.contract_id, &f.client, &f.freelancer, &f.admin, &0, &f.token_addr,
+    );
+    assert_eq!(result, Err(Ok(EscrowError::InvalidAmount)));
+}
+
+#[test]
+fn fund_negative_amount_is_rejected() {
+    let f = Fixture::setup();
+    let result = f.escrow().try_fund(
+        &f.contract_id, &f.client, &f.freelancer, &f.admin, &-1, &f.token_addr,
+    );
+    assert_eq!(result, Err(Ok(EscrowError::InvalidAmount)));
 }
 
 // ---------------------------------------------------------------------------
@@ -269,8 +290,7 @@ fn resolve_dispute_release_to_freelancer() {
     f.escrow().dispute(&f.contract_id, &f.client);
     let before = f.token().balance(&f.freelancer);
     f.escrow()
-        .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::ReleaseToFreelancer, &0)
-        ;
+        .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::ReleaseToFreelancer, &0);
     assert_eq!(f.token().balance(&f.freelancer) - before, 1_000);
     assert_eq!(f.escrow().get_escrow(&f.contract_id).unwrap().status, EscrowStatus::Released);
 }
@@ -282,9 +302,9 @@ fn resolve_dispute_refund_to_client() {
     f.escrow().dispute(&f.contract_id, &f.freelancer);
     let before = f.token().balance(&f.client);
     f.escrow()
-        .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::RefundToClient, &0)
-        ;
+        .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::RefundToClient, &0);
     assert_eq!(f.token().balance(&f.client) - before, 1_000);
+    assert_eq!(f.escrow().get_escrow(&f.contract_id).unwrap().status, EscrowStatus::Refunded);
 }
 
 #[test]
@@ -295,10 +315,49 @@ fn resolve_dispute_split_60_40_is_atomic() {
     let fl_before = f.token().balance(&f.freelancer);
     let cl_before = f.token().balance(&f.client);
     f.escrow()
-        .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::Split, &6_000)
-        ;
+        .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::Split, &6_000);
     assert_eq!(f.token().balance(&f.freelancer) - fl_before, 600);
     assert_eq!(f.token().balance(&f.client) - cl_before, 400);
+    // A split must resolve to Resolved, not Released — the freelancer did not
+    // receive 100% of the funds.
+    assert_eq!(
+        f.escrow().get_escrow(&f.contract_id).unwrap().status,
+        EscrowStatus::Resolved,
+    );
+}
+
+#[test]
+fn resolve_dispute_split_100_0_sends_all_to_freelancer_and_resolves() {
+    let f = Fixture::setup();
+    f.fund(1_000);
+    f.escrow().dispute(&f.contract_id, &f.client);
+    let fl_before = f.token().balance(&f.freelancer);
+    let cl_before = f.token().balance(&f.client);
+    f.escrow()
+        .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::Split, &10_000);
+    assert_eq!(f.token().balance(&f.freelancer) - fl_before, 1_000);
+    assert_eq!(f.token().balance(&f.client) - cl_before, 0);
+    assert_eq!(
+        f.escrow().get_escrow(&f.contract_id).unwrap().status,
+        EscrowStatus::Resolved,
+    );
+}
+
+#[test]
+fn resolve_dispute_split_0_100_sends_all_to_client_and_resolves() {
+    let f = Fixture::setup();
+    f.fund(1_000);
+    f.escrow().dispute(&f.contract_id, &f.client);
+    let fl_before = f.token().balance(&f.freelancer);
+    let cl_before = f.token().balance(&f.client);
+    f.escrow()
+        .resolve_dispute(&f.contract_id, &f.admin, &DisputeDecision::Split, &0);
+    assert_eq!(f.token().balance(&f.freelancer) - fl_before, 0);
+    assert_eq!(f.token().balance(&f.client) - cl_before, 1_000);
+    assert_eq!(
+        f.escrow().get_escrow(&f.contract_id).unwrap().status,
+        EscrowStatus::Resolved,
+    );
 }
 
 #[test]

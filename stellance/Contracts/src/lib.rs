@@ -6,7 +6,8 @@
 //!
 //! One contract instance is deployed per Stellance environment (testnet / mainnet).
 //! Each freelance contract maps to a persistent [`EscrowEntry`] keyed by the
-//! off-chain `contract_id` (the PostgreSQL UUID stored in the backend).
+//! off-chain `contract_id` (a short identifier derived from the PostgreSQL UUID —
+//! see the backend's `contractIdToSymbol` helper).
 //!
 //! ## Escrow state machine
 //!
@@ -17,7 +18,7 @@
 //!                                           │
 //!                          resolve_dispute() (admin only)
 //!                                           │
-//!                                    Released / Refunded (split)
+//!                     Released / Refunded / Resolved (split)
 //! ```
 //!
 //! ## Why Soroban (not multisig)?
@@ -45,6 +46,14 @@
 //!   via Horizon RPC event streaming rather than polling.
 //! - `resolve_dispute` supports a fractional split (basis points) enabling
 //!   partial refunds — not possible with a simple multisig approach.
+//!
+//! ## contract_id encoding
+//!
+//! Soroban `Symbol` is limited to 32 characters. PostgreSQL UUIDs are 36
+//! characters (with hyphens), so raw UUIDs cannot be used as Symbol keys.
+//! The backend truncates hyphens and uses the first 32 hex characters of the
+//! UUID as the on-chain key. See `contractIdToSymbol` in
+//! `stellance/backend/src/escrow/escrow.service.ts`.
 //!
 //! ## Build
 //!
@@ -74,6 +83,15 @@ use soroban_sdk::{
 // Data types
 // ---------------------------------------------------------------------------
 
+/// Namespaced storage key.
+///
+/// Using a typed enum prevents collisions if more storage types are added
+/// in the future (e.g. contract-level config, fee accumulator).
+#[contracttype]
+pub enum DataKey {
+    Escrow(Symbol),
+}
+
 /// Status of an escrow entry.
 #[contracttype]
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -86,6 +104,10 @@ pub enum EscrowStatus {
     Refunded,
     /// Funds are frozen pending admin arbitration.
     Disputed,
+    /// Dispute resolved via a split: some funds went to the freelancer,
+    /// the remainder to the client. Neither `Released` nor `Refunded` fully
+    /// describes this outcome.
+    Resolved,
 }
 
 /// Persistent on-chain record for one freelance contract.
@@ -143,6 +165,8 @@ pub enum EscrowError {
     InvalidSplitBps = 5,
     /// Arithmetic overflow — should not occur with normal amounts.
     Overflow = 6,
+    /// amount must be greater than zero.
+    InvalidAmount = 7,
 }
 
 // ---------------------------------------------------------------------------
@@ -163,8 +187,15 @@ impl StellanceEscrow {
     /// - Caller must be `client` (Soroban authorization enforced).
     /// - `admin` is set at fund time and cannot be changed.
     /// - Reverts if an escrow entry already exists for `contract_id`.
+    /// - `amount` must be greater than zero.
     /// - The client must have previously approved this contract as a spender
     ///   for at least `amount` tokens via the token's `approve()` function.
+    ///
+    /// ## contract_id
+    ///
+    /// Must be a valid Soroban Symbol (≤32 characters, `[a-zA-Z0-9_]`).
+    /// The backend passes the first 32 hex characters of the UUID with hyphens
+    /// stripped. See `contractIdToSymbol` in the backend's EscrowService.
     pub fn fund(
         env: Env,
         contract_id: Symbol,
@@ -177,8 +208,15 @@ impl StellanceEscrow {
         // Require client signature — Soroban native auth enforcement
         client.require_auth();
 
+        // Guard: amount must be positive
+        if amount <= 0 {
+            return Err(EscrowError::InvalidAmount);
+        }
+
+        let key = DataKey::Escrow(contract_id.clone());
+
         // Guard: no double-funding
-        if env.storage().persistent().has(&contract_id) {
+        if env.storage().persistent().has(&key) {
             return Err(EscrowError::AlreadyFunded);
         }
 
@@ -201,7 +239,7 @@ impl StellanceEscrow {
             admin: admin.clone(),
         };
 
-        env.storage().persistent().set(&contract_id, &entry);
+        env.storage().persistent().set(&key, &entry);
 
         // Emit event for backend Horizon RPC streaming
         env.events().publish(
@@ -230,10 +268,11 @@ impl StellanceEscrow {
     ) -> Result<(), EscrowError> {
         caller.require_auth();
 
+        let key = DataKey::Escrow(contract_id.clone());
         let mut entry: EscrowEntry = env
             .storage()
             .persistent()
-            .get(&contract_id)
+            .get(&key)
             .ok_or(EscrowError::NotFound)?;
 
         // Only funded escrows can release
@@ -272,7 +311,7 @@ impl StellanceEscrow {
             entry.status = EscrowStatus::Released;
         }
 
-        env.storage().persistent().set(&contract_id, &entry);
+        env.storage().persistent().set(&key, &entry);
 
         env.events().publish(
             (Symbol::new(&env, "release_ms"), contract_id),
@@ -297,10 +336,11 @@ impl StellanceEscrow {
     ) -> Result<(), EscrowError> {
         caller.require_auth();
 
+        let key = DataKey::Escrow(contract_id.clone());
         let mut entry: EscrowEntry = env
             .storage()
             .persistent()
-            .get(&contract_id)
+            .get(&key)
             .ok_or(EscrowError::NotFound)?;
 
         if entry.status != EscrowStatus::Funded {
@@ -326,7 +366,7 @@ impl StellanceEscrow {
 
         entry.released_amount = entry.total_amount;
         entry.status = EscrowStatus::Released;
-        env.storage().persistent().set(&contract_id, &entry);
+        env.storage().persistent().set(&key, &entry);
 
         env.events().publish(
             (Symbol::new(&env, "release"), contract_id),
@@ -352,10 +392,11 @@ impl StellanceEscrow {
     ) -> Result<(), EscrowError> {
         caller.require_auth();
 
+        let key = DataKey::Escrow(contract_id.clone());
         let mut entry: EscrowEntry = env
             .storage()
             .persistent()
-            .get(&contract_id)
+            .get(&key)
             .ok_or(EscrowError::NotFound)?;
 
         if entry.status != EscrowStatus::Funded {
@@ -380,7 +421,7 @@ impl StellanceEscrow {
         }
 
         entry.status = EscrowStatus::Refunded;
-        env.storage().persistent().set(&contract_id, &entry);
+        env.storage().persistent().set(&key, &entry);
 
         env.events().publish(
             (Symbol::new(&env, "refund"), contract_id),
@@ -406,10 +447,11 @@ impl StellanceEscrow {
     ) -> Result<(), EscrowError> {
         caller.require_auth();
 
+        let key = DataKey::Escrow(contract_id.clone());
         let mut entry: EscrowEntry = env
             .storage()
             .persistent()
-            .get(&contract_id)
+            .get(&key)
             .ok_or(EscrowError::NotFound)?;
 
         if entry.status != EscrowStatus::Funded {
@@ -421,7 +463,7 @@ impl StellanceEscrow {
         }
 
         entry.status = EscrowStatus::Disputed;
-        env.storage().persistent().set(&contract_id, &entry);
+        env.storage().persistent().set(&key, &entry);
 
         env.events().publish(
             (Symbol::new(&env, "dispute"), contract_id),
@@ -440,10 +482,10 @@ impl StellanceEscrow {
     /// Only the `admin` address set at `fund` time can call this.
     ///
     /// `decision`:
-    /// - `ReleaseToFreelancer` — 100% to freelancer
-    /// - `RefundToClient`      — 100% to client
+    /// - `ReleaseToFreelancer` — 100% to freelancer → status `Released`
+    /// - `RefundToClient`      — 100% to client     → status `Refunded`
     /// - `Split`               — `freelancer_bps` basis points (0–10_000) to
-    ///                           freelancer, remainder to client.
+    ///                           freelancer, remainder to client → status `Resolved`
     ///
     /// Both transfers in a `Split` happen in the same Soroban invocation,
     /// making the split **atomic** — enforced by the VM, not by trust.
@@ -457,10 +499,11 @@ impl StellanceEscrow {
     ) -> Result<(), EscrowError> {
         caller.require_auth();
 
+        let key = DataKey::Escrow(contract_id.clone());
         let mut entry: EscrowEntry = env
             .storage()
             .persistent()
-            .get(&contract_id)
+            .get(&key)
             .ok_or(EscrowError::NotFound)?;
 
         if entry.status != EscrowStatus::Disputed {
@@ -528,11 +571,15 @@ impl StellanceEscrow {
                         &client_amount,
                     );
                 }
-                entry.status = EscrowStatus::Released;
+                // Split is neither a full release nor a full refund.
+                // EscrowStatus::Resolved accurately describes this outcome so
+                // that get_escrow() callers can distinguish it from the other
+                // two terminal states.
+                entry.status = EscrowStatus::Resolved;
             }
         }
 
-        env.storage().persistent().set(&contract_id, &entry);
+        env.storage().persistent().set(&key, &entry);
 
         env.events().publish(
             (Symbol::new(&env, "resolve"), contract_id),
@@ -552,7 +599,9 @@ impl StellanceEscrow {
     /// The backend and frontend can call this to verify on-chain state
     /// without relying solely on their own database records.
     pub fn get_escrow(env: Env, contract_id: Symbol) -> Option<EscrowEntry> {
-        env.storage().persistent().get(&contract_id)
+        env.storage()
+            .persistent()
+            .get(&DataKey::Escrow(contract_id))
     }
 
     // -----------------------------------------------------------------------
