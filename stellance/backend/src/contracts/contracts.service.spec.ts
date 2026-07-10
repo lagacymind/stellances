@@ -57,7 +57,10 @@ const pendingMilestone = {
   payment: null,
 };
 
-const inReviewMilestone = { ...pendingMilestone, status: MilestoneStatus.IN_REVIEW };
+const inReviewMilestone = {
+  ...pendingMilestone,
+  status: MilestoneStatus.IN_REVIEW,
+};
 
 // ---------------------------------------------------------------------------
 // Setup helpers
@@ -88,14 +91,19 @@ function makePrismaMock() {
       create: jest.fn(),
       findMany: jest.fn(),
     },
-    $transaction: jest.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        contract: { create: jest.fn().mockResolvedValue(baseContract), update: jest.fn() },
-        milestone: { createMany: jest.fn(), update: jest.fn() },
-        job: { update: jest.fn() },
-        payment: { create: jest.fn() },
-      }),
-    ),
+    $transaction: jest
+      .fn()
+      .mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          contract: {
+            create: jest.fn().mockResolvedValue(baseContract),
+            update: jest.fn(),
+          },
+          milestone: { createMany: jest.fn(), update: jest.fn() },
+          job: { update: jest.fn() },
+          payment: { create: jest.fn() },
+        }),
+      ),
   };
 }
 
@@ -230,7 +238,11 @@ describe('ContractsService', () => {
         escrowTxHash: 'new-hash',
       });
 
-      const result = await service.confirmFund(CONTRACT_ID, CLIENT_ID, 'new-hash');
+      const result = await service.confirmFund(
+        CONTRACT_ID,
+        CLIENT_ID,
+        'new-hash',
+      );
 
       expect(escrow.verifyTransaction).toHaveBeenCalledWith('new-hash');
       expect(prisma.contract.update).toHaveBeenCalledWith(
@@ -337,17 +349,19 @@ describe('ContractsService', () => {
       });
 
       const callOrder: string[] = [];
-      escrow.submitReleaseMilestone.mockImplementation(async () => {
+      escrow.submitReleaseMilestone.mockImplementation(() => {
         callOrder.push('soroban');
-        return 'tx-hash-release';
+        return Promise.resolve('tx-hash-release');
       });
-      prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-        callOrder.push('db-commit');
-        return fn({
-          milestone: { update: jest.fn() },
-          payment: { create: jest.fn() },
-        });
-      });
+      prisma.$transaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          callOrder.push('db-commit');
+          return fn({
+            milestone: { update: jest.fn() },
+            payment: { create: jest.fn() },
+          });
+        },
+      );
 
       await service.approveMilestone(CONTRACT_ID, MILESTONE_ID, CLIENT_ID);
 
@@ -419,13 +433,16 @@ describe('ContractsService', () => {
       });
 
       const callOrder: string[] = [];
-      escrow.submitDispute.mockImplementation(async () => {
+      escrow.submitDispute.mockImplementation(() => {
         callOrder.push('soroban');
-        return 'tx-hash-dispute';
+        return Promise.resolve('tx-hash-dispute');
       });
-      prisma.contract.update.mockImplementation(async () => {
+      prisma.contract.update.mockImplementation(() => {
         callOrder.push('db-update');
-        return { ...baseContract, status: ContractStatus.DISPUTED };
+        return Promise.resolve({
+          ...baseContract,
+          status: ContractStatus.DISPUTED,
+        });
       });
 
       await service.dispute(CONTRACT_ID, CLIENT_ID, 'reason');
