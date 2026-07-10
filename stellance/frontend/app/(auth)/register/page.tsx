@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import { LoginForm } from "./LoginForm";
+import { RegisterForm } from "./RegisterForm";
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
-// Auth layout sets template: "%s | Stellance" → "Sign In | Stellance".
+// The auth layout sets template: "%s | Stellance", so the browser title
+// becomes "Create Account | Stellance".
 
 export const metadata: Metadata = {
-  title: "Sign In",
-  description: "Sign in to your Stellance account.",
+  title: "Create Account",
+  description:
+    "Sign up for Stellance and choose your role — freelancer or client — to start using instant on-chain escrow payments.",
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function LoginPage() {
-  return <LoginForm />;
+export default function RegisterPage() {
+  return <RegisterForm />;
 }

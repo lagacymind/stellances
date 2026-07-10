@@ -78,15 +78,29 @@ export default function Home() {
           <div className="hidden sm:flex items-center gap-6 md:gap-8 text-sm" style={{ color: "#9ca3af" }}>
             <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
             <a href="#features" className="hover:text-white transition-colors hidden md:inline">Features</a>
-            <a href="/demo" className="hover:text-white transition-colors hidden md:inline">Demo</a>
             <a
               href="https://github.com/alone-in/stellances"
               target="_blank"
               rel="noreferrer"
-              className="hover:text-white transition-colors"
+              className="hover:text-white transition-colors hidden md:inline"
             >
               ↗ GitHub
             </a>
+            <Link href="/login" className="hover:text-white transition-colors">
+              Sign in
+            </Link>
+            <Link
+              href="/register"
+              style={{
+                display: "inline-flex", alignItems: "center",
+                background: "linear-gradient(90deg, #7c3aed 0%, #0ea5e9 100%)",
+                color: "#fff", fontWeight: 600,
+                fontSize: "0.8rem", padding: "0.45rem 1rem", borderRadius: "6px",
+                textDecoration: "none",
+              }}
+            >
+              Get started
+            </Link>
           </div>
         </div>
       </nav>
@@ -106,7 +120,7 @@ export default function Home() {
               }}
             >
               <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#a78bfa", display: "inline-block" }} />
-              Stellar network · Testnet live · Open source
+              Stellar network · Instant settlement · Open source
             </p>
 
             {/* Headline */}
@@ -156,7 +170,7 @@ export default function Home() {
             {/* CTAs */}
             <div className="flex flex-row gap-3 mt-8 flex-wrap">
               <Link
-                href="/demo"
+                href="/register"
                 style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
                   background: "linear-gradient(90deg, #7c3aed 0%, #0ea5e9 100%)",
@@ -166,7 +180,7 @@ export default function Home() {
                   boxShadow: "0 0 24px rgba(124,58,237,0.4)",
                 }}
               >
-                Try testnet demo →
+                Get started free →
               </Link>
               <a
                 href="https://github.com/alone-in/stellances"
@@ -381,7 +395,7 @@ export default function Home() {
       <section className="py-16 sm:py-24" style={{ borderBottom: "1px solid rgba(167,139,250,0.15)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-8 text-center">
           <p style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "#a78bfa", marginBottom: "1rem" }}>
-            See it live
+            Get started
           </p>
           <h2
             style={{
@@ -391,14 +405,14 @@ export default function Home() {
               letterSpacing: "-0.03em", marginBottom: "1rem",
             }}
           >
-            See it on the Stellar testnet —<br className="hidden sm:inline" /> no signup required.
+            Start getting paid on-chain —<br className="hidden sm:inline" /> in under a minute.
           </h2>
           <p style={{ fontSize: "0.95rem", color: "#64748b", marginBottom: "2rem", maxWidth: "36rem", margin: "0 auto 2rem" }}>
-            Generate a keypair, fund it with Friendbot, and watch a payment settle in under 5 seconds.
+            Create your account, connect your Stellar wallet, and post or accept your first job. No platform custody, no settlement delays.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/demo"
+              href="/register"
               style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
                 background: "linear-gradient(90deg, #7c3aed 0%, #0ea5e9 100%)",
@@ -408,11 +422,10 @@ export default function Home() {
                 boxShadow: "0 0 24px rgba(124,58,237,0.4)",
               }}
             >
-              Try the demo →
+              Create free account →
             </Link>
-            <a
-              href="https://github.com/alone-in/stellances"
-              target="_blank" rel="noreferrer"
+            <Link
+              href="/login"
               style={{
                 display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
                 border: "1px solid rgba(167,139,250,0.3)", color: "#c4b5fd",
@@ -421,8 +434,8 @@ export default function Home() {
                 backgroundColor: "rgba(167,139,250,0.05)",
               }}
             >
-              GitHub ↗
-            </a>
+              Sign in
+            </Link>
           </div>
         </div>
       </section>
@@ -441,7 +454,8 @@ export default function Home() {
             <nav className="flex flex-wrap gap-x-6 gap-y-2" style={{ fontSize: "0.8rem" }}>
               <a href="#how-it-works" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>How it works</a>
               <a href="#features" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Features</a>
-              <Link href="/demo" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Demo</Link>
+              <Link href="/login" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Sign in</Link>
+              <Link href="/register" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Sign up</Link>
               <a href="https://github.com/alone-in/stellances" target="_blank" rel="noreferrer" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>GitHub ↗</a>
               <a href="https://github.com/alone-in/stellances/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Contributing</a>
               <a href="https://github.com/alone-in/stellances/blob/main/docs/architecture.md" target="_blank" rel="noreferrer" className="hover:text-white transition-colors" style={{ color: "#64748b" }}>Docs</a>
