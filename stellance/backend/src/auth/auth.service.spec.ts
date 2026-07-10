@@ -38,7 +38,10 @@ describe('AuthService', () => {
       ],
       providers: [
         AuthService,
-        { provide: PrismaService, useValue: prisma as unknown as PrismaService },
+        {
+          provide: PrismaService,
+          useValue: prisma as unknown as PrismaService,
+        },
         { provide: UsersService, useValue: {} },
       ],
     }).compile();
@@ -79,7 +82,9 @@ describe('AuthService', () => {
     const { refresh_token: oldRefresh } = await authService.login(testUser);
     await authService.refresh(oldRefresh);
 
-    await expect(authService.refresh(oldRefresh)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(authService.refresh(oldRefresh)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
 
     const state = prisma.getState();
     const user = state.users.find((u) => u.id === testUser.id);
@@ -87,4 +92,3 @@ describe('AuthService', () => {
     expect(state.refreshTokens.every((t) => t.revoked)).toBe(true);
   });
 });
-

@@ -127,7 +127,11 @@ export class ContractsService {
     });
   }
 
-  async findAll(callerId: string, callerRole: UserRole, filter?: 'client' | 'freelancer') {
+  async findAll(
+    callerId: string,
+    callerRole: UserRole,
+    filter?: 'client' | 'freelancer',
+  ) {
     const where =
       callerRole === UserRole.ADMIN
         ? {}
@@ -159,7 +163,11 @@ export class ContractsService {
     return contract;
   }
 
-  async submitMilestone(contractId: string, milestoneId: string, callerId: string) {
+  async submitMilestone(
+    contractId: string,
+    milestoneId: string,
+    callerId: string,
+  ) {
     const contract = await this._getContractOrThrow(contractId);
     if (contract.freelancerId !== callerId)
       throw new ForbiddenException('Only the freelancer can submit milestones');
@@ -186,7 +194,11 @@ export class ContractsService {
    * 4. Mark PAID
    * 5. Auto-complete contract if all milestones PAID
    */
-  async approveMilestone(contractId: string, milestoneId: string, callerId: string) {
+  async approveMilestone(
+    contractId: string,
+    milestoneId: string,
+    callerId: string,
+  ) {
     const contract = await this._getContractOrThrow(contractId);
     if (contract.clientId !== callerId)
       throw new ForbiddenException('Only the client can approve milestones');
@@ -203,12 +215,22 @@ export class ContractsService {
       data: { status: MilestoneStatus.APPROVED },
     });
 
-    const amountStroops = BigInt(Math.round(Number(milestone.amount) * 10_000_000));
-    const txHash = await this.escrow.submitReleaseMilestone({ contractId, amountStroops });
+    const amountStroops = BigInt(
+      Math.round(Number(milestone.amount) * 10_000_000),
+    );
+    const txHash = await this.escrow.submitReleaseMilestone({
+      contractId,
+      amountStroops,
+    });
 
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.create({
-        data: { contractId, milestoneId, amount: milestone.amount, stellarTxHash: txHash },
+        data: {
+          contractId,
+          milestoneId,
+          amount: milestone.amount,
+          stellarTxHash: txHash,
+        },
       });
       await tx.milestone.update({
         where: { id: milestoneId },
@@ -252,9 +274,14 @@ export class ContractsService {
     if (contract.status !== ContractStatus.DISPUTED)
       throw new BadRequestException('Contract is not DISPUTED');
 
-    const decisionMap: Record<string, 0 | 1 | 2> = { release: 0, refund: 1, split: 2 };
+    const decisionMap: Record<string, 0 | 1 | 2> = {
+      release: 0,
+      refund: 1,
+      split: 2,
+    };
     const decision = decisionMap[dto.decision];
-    if (decision === undefined) throw new BadRequestException(`Unknown decision: ${dto.decision}`);
+    if (decision === undefined)
+      throw new BadRequestException(`Unknown decision: ${dto.decision}`);
 
     const txHash = await this.escrow.submitResolveDispute({
       contractId,
@@ -263,7 +290,9 @@ export class ContractsService {
     });
 
     const finalStatus =
-      dto.decision === 'refund' ? ContractStatus.CANCELLED : ContractStatus.COMPLETED;
+      dto.decision === 'refund'
+        ? ContractStatus.CANCELLED
+        : ContractStatus.COMPLETED;
     const remaining = await this._remainingAmount(contractId);
 
     await this.prisma.$transaction(async (tx) => {
@@ -307,8 +336,14 @@ export class ContractsService {
           data: { contractId, amount: remaining, stellarTxHash: txHash },
         });
       }
-      await tx.contract.update({ where: { id: contractId }, data: { status: ContractStatus.CANCELLED } });
-      await tx.job.update({ where: { id: contract.job.id }, data: { status: JobStatus.OPEN } });
+      await tx.contract.update({
+        where: { id: contractId },
+        data: { status: ContractStatus.CANCELLED },
+      });
+      await tx.job.update({
+        where: { id: contract.job.id },
+        data: { status: JobStatus.OPEN },
+      });
     });
 
     return { cancelled: true, txHash };
@@ -322,7 +357,9 @@ export class ContractsService {
         payments: true,
         job: { select: { id: true, title: true, status: true } },
         client: { select: { id: true, name: true, stellarPublicKey: true } },
-        freelancer: { select: { id: true, name: true, stellarPublicKey: true } },
+        freelancer: {
+          select: { id: true, name: true, stellarPublicKey: true },
+        },
       },
     });
     if (!contract) throw new NotFoundException(`Contract ${id} not found`);
@@ -344,8 +381,14 @@ export class ContractsService {
 
   private async _remainingAmount(contractId: string): Promise<number> {
     const [milestones, payments] = await Promise.all([
-      this.prisma.milestone.findMany({ where: { contractId }, select: { amount: true } }),
-      this.prisma.payment.findMany({ where: { contractId }, select: { amount: true } }),
+      this.prisma.milestone.findMany({
+        where: { contractId },
+        select: { amount: true },
+      }),
+      this.prisma.payment.findMany({
+        where: { contractId },
+        select: { amount: true },
+      }),
     ]);
     const total = milestones.reduce((s, m) => s + Number(m.amount), 0);
     const paid = payments.reduce((s, p) => s + Number(p.amount), 0);
