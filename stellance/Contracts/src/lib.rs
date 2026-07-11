@@ -170,6 +170,21 @@ pub enum EscrowError {
 }
 
 // ---------------------------------------------------------------------------
+// Storage TTL
+// ---------------------------------------------------------------------------
+
+/// Extend-to target: ~1 year in ledgers (5 s/ledger on mainnet).
+///
+/// Soroban persistent storage entries have a finite on-chain lifetime. Without
+/// periodic extension a funded escrow entry would eventually be evicted and
+/// the locked funds made unrecoverable. Every write that touches persistent
+/// storage must call `extend_ttl` so the entry's lifetime is refreshed to
+/// at least `TTL_EXTEND_TO` ledgers from now, provided the remaining TTL is
+/// below `TTL_EXTEND_IF_BELOW`.
+const TTL_EXTEND_TO: u32 = 2_076_480; // ≈1 year  @ 5 s/ledger
+const TTL_EXTEND_IF_BELOW: u32 = 518_400; // ≈30 days @ 5 s/ledger
+
+// ---------------------------------------------------------------------------
 // Contract
 // ---------------------------------------------------------------------------
 
@@ -241,6 +256,11 @@ impl StellanceEscrow {
 
         env.storage().persistent().set(&key, &entry);
 
+        // Extend TTL so the new entry survives for at least ~1 year.
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_EXTEND_IF_BELOW, TTL_EXTEND_TO);
+
         // Emit event for backend Horizon RPC streaming
         env.events().publish(
             (Symbol::new(&env, "fund"), contract_id),
@@ -290,7 +310,12 @@ impl StellanceEscrow {
             .checked_sub(entry.released_amount)
             .ok_or(EscrowError::Overflow)?;
 
-        if milestone_amount <= 0 || milestone_amount > remaining {
+        // Zero / negative amount is a caller error, not a state error.
+        if milestone_amount <= 0 {
+            return Err(EscrowError::InvalidAmount);
+        }
+
+        if milestone_amount > remaining {
             return Err(EscrowError::InvalidState);
         }
 
@@ -312,6 +337,11 @@ impl StellanceEscrow {
         }
 
         env.storage().persistent().set(&key, &entry);
+
+        // Refresh TTL so active entries don't expire.
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_EXTEND_IF_BELOW, TTL_EXTEND_TO);
 
         env.events().publish(
             (Symbol::new(&env, "release_ms"), contract_id),
@@ -368,6 +398,12 @@ impl StellanceEscrow {
         entry.status = EscrowStatus::Released;
         env.storage().persistent().set(&key, &entry);
 
+        // Refresh TTL — the entry is now terminal but must remain readable
+        // so that off-chain indexers can verify the final state.
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_EXTEND_IF_BELOW, TTL_EXTEND_TO);
+
         env.events().publish(
             (Symbol::new(&env, "release"), contract_id),
             (entry.freelancer.clone(), remaining),
@@ -423,6 +459,11 @@ impl StellanceEscrow {
         entry.status = EscrowStatus::Refunded;
         env.storage().persistent().set(&key, &entry);
 
+        // Refresh TTL — keep the terminal record readable for audit purposes.
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_EXTEND_IF_BELOW, TTL_EXTEND_TO);
+
         env.events().publish(
             (Symbol::new(&env, "refund"), contract_id),
             (entry.client.clone(), remaining),
@@ -464,6 +505,11 @@ impl StellanceEscrow {
 
         entry.status = EscrowStatus::Disputed;
         env.storage().persistent().set(&key, &entry);
+
+        // Refresh TTL — disputed escrows may take time to resolve; keep alive.
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_EXTEND_IF_BELOW, TTL_EXTEND_TO);
 
         env.events().publish(
             (Symbol::new(&env, "dispute"), contract_id),
@@ -580,6 +626,11 @@ impl StellanceEscrow {
         }
 
         env.storage().persistent().set(&key, &entry);
+
+        // Refresh TTL — keep the resolved record readable for audit purposes.
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_EXTEND_IF_BELOW, TTL_EXTEND_TO);
 
         env.events().publish(
             (Symbol::new(&env, "resolve"), contract_id),

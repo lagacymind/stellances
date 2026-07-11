@@ -123,9 +123,13 @@ function makeEscrowMock() {
 function setup() {
   const prisma = makePrismaMock();
   const escrow = makeEscrowMock();
+  // ConfigService mock — returns undefined for any key so the service uses
+  // its built-in fallback values (testnet defaults).
+  const config = { get: jest.fn().mockReturnValue(undefined) };
   const service = new ContractsService(
     prisma as unknown as PrismaService,
     escrow as unknown as EscrowService,
+    config as unknown as import('@nestjs/config').ConfigService,
   );
   return { prisma, escrow, service };
 }

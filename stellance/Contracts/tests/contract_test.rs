@@ -38,9 +38,9 @@ impl Fixture {
         let freelancer_addr = Address::generate(&env);
         let admin_addr = Address::generate(&env);
 
-        // 21.x API: register_stellar_asset_contract
+        // 21.x API: register_stellar_asset_contract_v2
         let token_admin = Address::generate(&env);
-        let token_addr = env.register_stellar_asset_contract(token_admin);
+        let token_addr = env.register_stellar_asset_contract_v2(token_admin).address();
 
         StellarAssetClient::new(&env, &token_addr).mint(&client_addr, &10_000);
         TokenClient::new(&env, &token_addr).approve(
@@ -173,7 +173,9 @@ fn release_milestone_zero_amount_fails() {
     let f = Fixture::setup();
     f.fund(1_000);
     let result = f.escrow().try_release_milestone(&f.contract_id, &f.client, &0);
-    assert_eq!(result, Err(Ok(EscrowError::InvalidState)));
+    // Zero amount is an invalid *input*, not an invalid state — use InvalidAmount,
+    // consistent with the same check in fund().
+    assert_eq!(result, Err(Ok(EscrowError::InvalidAmount)));
 }
 
 // ---------------------------------------------------------------------------
