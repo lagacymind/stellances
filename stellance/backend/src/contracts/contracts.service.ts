@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow/escrow.service';
 import {
@@ -21,6 +22,7 @@ export class ContractsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly escrow: EscrowService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -85,8 +87,12 @@ export class ContractsService {
     if (client.stellarPublicKey && freelancer.stellarPublicKey) {
       try {
         const adminKey = this.escrow.getAdminPublicKey();
+        // Use ConfigService so the value goes through the validated NestJS
+        // config pipeline (env file, mapped config, container env injection).
+        // Fallback to the well-known testnet wrapped-native-XLM contract so
+        // local development works without any extra env vars.
         const tokenContractId =
-          process.env.STELLAR_TOKEN_CONTRACT_ID ??
+          this.config.get<string>('STELLAR_TOKEN_CONTRACT_ID') ??
           'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
         fundXdr = await this.escrow.buildFundXdr({
           contractId: contract.id,
