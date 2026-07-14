@@ -14,11 +14,25 @@ Interactive docs (Swagger): `http://localhost:3001/docs`
   - [POST /auth/logout-all](#post-authlogout-all)
 - [User Endpoints](#user-endpoints)
   - [GET /users/me](#get-usersme)
-  - [PATCH /users/me](#patch-usersme-planned)
-- [Jobs Endpoints](#jobs-endpoints-planned)
-- [Contracts Endpoints](#contracts-endpoints-planned)
-- [Milestones Endpoints](#milestones-endpoints-planned)
-- [Payments Endpoints](#payments-endpoints-planned)
+  - [PATCH /users/me](#patch-usersme)
+- [Jobs Endpoints](#jobs-endpoints)
+  - [GET /jobs](#get-jobs)
+  - [POST /jobs](#post-jobs)
+  - [GET /jobs/:id](#get-jobsid)
+  - [PATCH /jobs/:id](#patch-jobsid)
+  - [POST /jobs/:id/cancel](#post-jobsidcancel)
+- [Contracts Endpoints](#contracts-endpoints)
+  - [POST /contracts](#post-contracts)
+  - [POST /contracts/:id/confirm-fund](#post-contractsidconfirm-fund)
+  - [GET /contracts](#get-contracts)
+  - [GET /contracts/:id](#get-contractsid)
+  - [POST /contracts/:id/dispute](#post-contractsiddispute)
+  - [POST /contracts/:id/cancel](#post-contractsidcancel)
+  - [PATCH /contracts/admin/:id/resolve](#patch-contractsadminidresolve)
+- [Milestones Endpoints](#milestones-endpoints)
+  - [PATCH /contracts/:id/milestones/:mid/submit](#patch-contractsidmilestonesmidsubmit)
+  - [PATCH /contracts/:id/milestones/:mid/approve](#patch-contractsidmilestonesmidapprove)
+- [Payments Endpoints](#payments-endpoints)
 - [Error Format](#error-format)
 - [Status Codes](#status-codes)
 
@@ -241,9 +255,7 @@ The `password` field is never returned. `stellarPublicKey` is `null` until the u
 
 ---
 
-### PATCH /users/me (Planned)
-
-> **Status:** not yet implemented. This endpoint is needed to let users save their Stellar wallet address after connecting Freighter.
+### PATCH /users/me
 
 Update the authenticated user's profile. All fields are optional; only the provided fields are updated.
 
@@ -275,49 +287,22 @@ Update the authenticated user's profile. All fields are optional; only the provi
 
 ---
 
-## Jobs Endpoints (Planned)
-
-> These endpoints are specified here as the intended contract. Implementation is in progress.
+## Jobs Endpoints
 
 ### GET /jobs
 
-List open jobs. Supports filtering and pagination.
+List jobs. Supports filtering by status and clientId.
 
-**Auth required:** No (public)
+**Auth required:** No (public for OPEN jobs)
 
 **Query params:**
 
 | Param | Type | Default | Notes |
 |-------|------|---------|-------|
-| `status` | `OPEN\|IN_PROGRESS\|COMPLETED\|CANCELLED` | `OPEN` | Filter by status |
-| `category` | string | — | Filter by category |
-| `page` | number | `1` | Page number |
-| `limit` | number | `20` | Results per page (max 100) |
+| `status` | `OPEN\|IN_PROGRESS\|COMPLETED\|CANCELLED` | — | Filter by status |
+| `clientId` | UUID | — | Filter by client |
 
-**Response `200 OK`:**
-
-```json
-{
-  "data": [
-    {
-      "id": "...",
-      "title": "Build a Stellar payment integration",
-      "description": "...",
-      "budget": "500.0000000",
-      "category": "Blockchain",
-      "status": "OPEN",
-      "clientId": "...",
-      "createdAt": "2026-07-01T12:00:00.000Z"
-    }
-  ],
-  "meta": {
-    "total": 42,
-    "page": 1,
-    "limit": 20,
-    "totalPages": 3
-  }
-}
-```
+**Response `200 OK`:** Array of `Job` objects, each including `client` (id, name, stellarPublicKey) and a `contract` summary (id, status) if one exists.
 
 ---
 
@@ -333,12 +318,19 @@ Post a new job.
 {
   "title": "Build a Stellar payment integration",
   "description": "We need a NestJS service that submits XLM payments via Horizon.",
-  "budget": "500.00",
+  "budget": 500.0,
   "category": "Blockchain"
 }
 ```
 
-**Response `201 Created`:** The created `Job` object.
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `title` | string | ✅ | Max 200 characters |
+| `description` | string | ✅ | — |
+| `budget` | number | ✅ | Positive, max 7 decimal places |
+| `category` | string | ✅ | Max 100 characters |
+
+**Response `201 Created`:** The created `Job` object with `status: "OPEN"`.
 
 ---
 
@@ -348,11 +340,57 @@ Get a single job by ID.
 
 **Auth required:** No
 
-**Response `200 OK`:** The `Job` object, including the associated `Contract` if one exists.
+**Response `200 OK`:** `Job` with nested `client` and `contract` (if one exists).
+
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 404 | Job not found |
 
 ---
 
-## Contracts Endpoints (Planned)
+### PATCH /jobs/:id
+
+Update a job's fields. Only the job owner (client) or an admin can update. The job must be in `OPEN` status.
+
+**Auth required:** Yes
+
+**Request body:** Same shape as `POST /jobs`, all fields optional.
+
+**Response `200 OK`:** Updated `Job` object.
+
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Job is not OPEN |
+| 403 | Caller does not own the job |
+| 404 | Job not found |
+
+---
+
+### POST /jobs/:id/cancel
+
+Cancel an open job. Only the job owner (client) or an admin can cancel. Cannot cancel if a contract is already active.
+
+**Auth required:** Yes
+
+**Request body:** none
+
+**Response `200 OK`:** Updated `Job` object with `status: "CANCELLED"`.
+
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Job is already completed/cancelled, or has an active contract |
+| 403 | Caller does not own the job |
+| 404 | Job not found |
+
+---
+
+## Contracts Endpoints
 
 ### POST /contracts
 
@@ -364,12 +402,12 @@ Create a contract (client hires a freelancer for a job). Also returns the unsign
 
 ```json
 {
-  "jobId": "...",
-  "freelancerId": "...",
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "freelancerId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "milestones": [
-    { "title": "Initial design", "amount": "150.00" },
-    { "title": "Implementation", "amount": "300.00" },
-    { "title": "Testing and handoff", "amount": "50.00" }
+    { "title": "Initial design", "amount": 150.0 },
+    { "title": "Implementation", "amount": 300.0 },
+    { "title": "Testing and handoff", "amount": 50.0 }
   ]
 }
 ```
@@ -385,19 +423,30 @@ Create a contract (client hires a freelancer for a job). Also returns the unsign
     "clientId": "...",
     "status": "ACTIVE",
     "escrowTxHash": null,
-    "milestones": [...]
+    "milestones": [
+      { "id": "...", "title": "Initial design", "amount": "150.0000000", "status": "PENDING" }
+    ]
   },
-  "fundingXdr": "AAAAAgAAAA..."
+  "fundXdr": "AAAAAgAAAA..."
 }
 ```
 
-The `fundingXdr` is an unsigned Soroban invocation transaction. The frontend passes this to Freighter, the user signs it, and the frontend submits it to Horizon, then calls `POST /contracts/:id/confirm-fund` with the resulting hash.
+`fundXdr` is an unsigned Soroban invocation transaction. Pass it to Freighter for signing, submit to Horizon, then call `POST /contracts/:id/confirm-fund` with the resulting hash. If the Soroban RPC is not available, `fundXdr` may be `null` — the frontend can retry the XDR generation later.
+
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Job is not OPEN |
+| 403 | Caller does not own the job |
+| 404 | Job or freelancer not found |
+| 409 | Job already has a contract |
 
 ---
 
 ### POST /contracts/:id/confirm-fund
 
-Confirm that the escrow funding transaction was submitted on-chain.
+Confirm that the escrow funding transaction was submitted on-chain. The backend verifies the tx hash exists on Horizon before recording it.
 
 **Auth required:** Yes — must be the client on this contract
 
@@ -415,19 +464,35 @@ Confirm that the escrow funding transaction was submitted on-chain.
 {
   "id": "...",
   "status": "ACTIVE",
-  "escrowTxHash": "a1b2c3d4e5f6..."
+  "escrowTxHash": "a1b2c3d4e5f6...",
+  "milestones": [...]
 }
 ```
+
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 403 | Caller is not the client |
+| 404 | Contract not found |
+| 409 | Escrow already confirmed |
+| 503 | Horizon unavailable (tx hash could not be verified) |
 
 ---
 
 ### GET /contracts
 
-List the authenticated user's contracts (as client or freelancer).
+List the authenticated user's contracts (as client or freelancer). Admins can see all contracts.
 
 **Auth required:** Yes
 
-**Response `200 OK`:** Array of `Contract` objects with nested `milestones` and `payments`.
+**Query params:**
+
+| Param | Type | Notes |
+|-------|------|-------|
+| `filter` | `"client"` \| `"freelancer"` | Filter by your role. Defaults to client view. |
+
+**Response `200 OK`:** Array of `Contract` objects with nested `milestones`, `job` summary, and user summaries.
 
 ---
 
@@ -435,15 +500,22 @@ List the authenticated user's contracts (as client or freelancer).
 
 Get full contract detail.
 
-**Auth required:** Yes — must be client or freelancer on this contract
+**Auth required:** Yes — must be client, freelancer, or admin
 
 **Response `200 OK`:** `Contract` with nested `milestones`, `payments`, and user summaries.
+
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 403 | Caller is not a party to this contract |
+| 404 | Contract not found |
 
 ---
 
 ### POST /contracts/:id/dispute
 
-Raise a dispute on an active contract. Funds remain in escrow pending admin resolution.
+Raise a dispute on an active contract. If the escrow is funded, the on-chain escrow is frozen before the database is updated (trustless: the freeze happens regardless of whether the backend DB write succeeds).
 
 **Auth required:** Yes — must be client or freelancer on this contract
 
@@ -464,15 +536,98 @@ Raise a dispute on an active contract. Funds remain in escrow pending admin reso
 }
 ```
 
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Contract is not ACTIVE |
+| 403 | Caller is not a party to this contract |
+| 404 | Contract not found |
+| 503 | Soroban RPC unavailable (on-chain freeze failed; DB unchanged) |
+
 ---
 
-## Milestones Endpoints (Planned)
+### POST /contracts/:id/cancel
+
+Cancel a contract. If the escrow is funded, an admin must perform the cancellation (to trigger a Soroban `refund()` call). Clients can cancel unfunded contracts themselves.
+
+**Auth required:** Yes — client (unfunded only) or admin
+
+**Request body:** none
+
+**Response `200 OK`:**
+
+```json
+{
+  "cancelled": true,
+  "txHash": "a1b2c3d4..."
+}
+```
+
+`txHash` is `undefined` for unfunded cancellations.
+
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Contract is already COMPLETED or CANCELLED |
+| 403 | Non-admin attempting to cancel a funded escrow |
+| 404 | Contract not found |
+
+---
+
+### PATCH /contracts/admin/:id/resolve
+
+Resolve a disputed contract. Admin only. Calls Soroban `resolve_dispute()` with the given decision.
+
+**Auth required:** Yes — `role = ADMIN`
+
+**Request body:**
+
+```json
+{
+  "decision": "split",
+  "freelancerBps": 6000
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `decision` | `"release"` \| `"refund"` \| `"split"` | ✅ | `release` → 100% to freelancer; `refund` → 100% to client; `split` → divide by `freelancerBps` |
+| `freelancerBps` | integer | For `split` | Basis points (0–10 000) of the remaining balance going to the freelancer |
+
+**Response `200 OK`:**
+
+```json
+{
+  "resolved": true,
+  "txHash": "a1b2c3d4...",
+  "status": "COMPLETED"
+}
+```
+
+`status` is `"COMPLETED"` for `release`/`split`, `"CANCELLED"` for `refund`.
+
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Contract is not DISPUTED, or unknown decision value |
+| 403 | Caller is not an admin |
+| 404 | Contract not found |
+| 503 | Soroban RPC unavailable |
+
+---
+
+## Milestones Endpoints
 
 ### PATCH /contracts/:id/milestones/:mid/submit
 
-Freelancer submits a milestone for review.
+Freelancer submits a milestone for client review. Milestone must be in `PENDING` status.
 
 **Auth required:** Yes — `role = FREELANCER`, must be the freelancer on this contract
+
+**Request body:** none
 
 **Response `200 OK`:**
 
@@ -483,22 +638,30 @@ Freelancer submits a milestone for review.
 }
 ```
 
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Milestone is not PENDING, or contract is not ACTIVE |
+| 403 | Caller is not the freelancer |
+| 404 | Milestone not found |
+
 ---
 
 ### PATCH /contracts/:id/milestones/:mid/approve
 
-Client approves a milestone. Triggers a Soroban `release()` call and creates a `Payment` record.
+Client approves a milestone. Calls Soroban `release_milestone()` on-chain **before** writing to the database, so the milestone stays `IN_REVIEW` if the Soroban call fails (no stuck state). On success, creates a `Payment` record and auto-completes the contract if all milestones are now `PAID`.
 
 **Auth required:** Yes — `role = CLIENT`, must be the client on this contract
+
+**Request body:** none
 
 **Response `200 OK`:**
 
 ```json
 {
-  "milestone": {
-    "id": "...",
-    "status": "PAID"
-  },
+  "id": "...",
+  "status": "PAID",
   "payment": {
     "id": "...",
     "amount": "150.0000000",
@@ -508,17 +671,58 @@ Client approves a milestone. Triggers a Soroban `release()` call and creates a `
 }
 ```
 
+**Errors:**
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Milestone is not IN_REVIEW, or contract is not ACTIVE |
+| 403 | Caller is not the client |
+| 404 | Milestone not found |
+| 503 | Soroban RPC unavailable (milestone stays IN_REVIEW, safe to retry) |
+
 ---
 
-## Payments Endpoints (Planned)
+## Payments Endpoints
 
-### GET /payments
+> The `/payments` backend module is in active development. The frontend currently uses mock data defined in `stellance/frontend/lib/api/payments.ts`. Once the backend ships, those stubs will be replaced with real API calls without any other frontend changes required.
 
-List all payments for the authenticated user's contracts.
+### GET /payments/balances
+
+Fetch Stellar wallet balances for the authenticated user's connected wallet.
 
 **Auth required:** Yes
 
-**Response `200 OK`:** Array of `Payment` objects with `stellarTxHash` for on-chain verification.
+**Response `200 OK`:** Array of `WalletBalance` objects (asset, balance, network).
+
+---
+
+### GET /payments/transactions
+
+Fetch the full transaction history for the authenticated user.
+
+**Auth required:** Yes
+
+**Response `200 OK`:** Array of `Transaction` objects including Stellar tx hashes for on-chain verification.
+
+---
+
+### POST /payments/withdraw
+
+Initiate a withdrawal from the connected Stellar wallet to an external address.
+
+**Auth required:** Yes
+
+**Request body:**
+
+```json
+{
+  "asset": "USDC",
+  "amount": "500.00",
+  "destinationAddress": "GDQOE23CFSUMSVQK4Y5JHPPYK73VYCNHZHA7ENKCV37P6SUEO6XQBKPP"
+}
+```
+
+**Response `201 Created`:** The new `Transaction` record with `status: "PENDING"`.
 
 ---
 
@@ -558,4 +762,4 @@ Validation errors return `message` as an array of strings. Other errors return a
 | 404 | Not Found — resource does not exist |
 | 409 | Conflict — e.g. duplicate email, already-funded contract |
 | 500 | Internal Server Error |
-| 502 | Bad Gateway — Stellar/Horizon call failed |
+| 503 | Service Unavailable — Soroban RPC or Horizon call failed |

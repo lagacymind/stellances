@@ -8,6 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `src/escrow/escrow.service.spec.ts` — 24-test unit suite for EscrowService covering all public methods: `contractIdToSymbol`, `getAdminPublicKey`, `verifyTransaction`, `buildFundXdr`, `submitReleaseMilestone`, `submitRelease`, `submitRefund`, `submitDispute`, `submitResolveDispute`, and constructor warnings. All Stellar SDK network calls are mocked; no network access required.
+
+### Changed
+- `auth.service.ts` — `validateUser` return type narrowed from `Promise<any>` to `Promise<Omit<User, 'password'> | null>`. Eliminates the only non-generated `any` in production backend code.
+- `main.ts` — replaced bare `console.log` with NestJS `Logger` for consistent structured log output; added `addBearerAuth()` to Swagger config so the `/docs` UI renders the auth header input; cleaned up import ordering; changed `||` to `??` for `FRONTEND_URL` fallback.
+- `docs/api-reference.md` — fully updated to reflect current implementation. Removed all `(Planned)` markers from Jobs, Contracts, and Milestones sections; added missing endpoints (`PATCH /jobs/:id`, `POST /jobs/:id/cancel`, `POST /contracts/:id/cancel`, `PATCH /contracts/admin/:id/resolve`); added Payments section with coming-soon note; updated error tables.
+- `README.md` — corrected repository structure comment (backend modules now accurate), soroban-sdk version (`21.x` not `22.x`), tech stack `@stellar/stellar-sdk` version note, and implementation status table.
+
+### Added
 - `docker-compose.yml` — PostgreSQL 16 service for local development (resolves references in multiple docs that pointed to a missing file)
 - `stellance/frontend/.env.local.example` — environment template; contributors now run `cp .env.local.example .env.local` instead of creating the file manually
 - `PATCH /users/me` implemented in `users.controller.ts` and `users.service.ts` — saves Stellar public key and display name; validated with `@Matches(/^G[A-Z2-7]{55}$/)` to reject malformed keys

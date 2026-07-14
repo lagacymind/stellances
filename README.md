@@ -107,10 +107,10 @@ This is a specific Stellar/Soroban capability: Ethereum events are similar, but 
 
 | Layer | What exists today | What's in active development |
 |-------|------------------|------------------------------|
-| **Soroban contract** | `fund`, `release_milestone`, `release`, `refund`, `dispute`, `resolve_dispute`, `get_escrow` — fully scaffolded with test suite | Testnet deployment, backend integration |
-| **Backend** | Auth (JWT + refresh token rotation), Users, Prisma schema with `stellarPublicKey`, `escrowTxHash`, `stellarTxHash` | Jobs, Contracts, Milestones, Payments, Escrow service (Stellar SDK) |
-| **Frontend** | Marketing landing page, live testnet demo (Friendbot + 1 XLM payment via Horizon) | Marketplace UI, Freighter wallet integration, contract invocation |
-| **CI** | Lint, test, WASM build | — |
+| **Soroban contract** | `fund`, `release_milestone`, `release`, `refund`, `dispute`, `resolve_dispute`, `get_escrow` — fully implemented, 30 tests, WASM build ✅ | Testnet deployment, backend integration wiring |
+| **Backend** | Auth (JWT + refresh token rotation), Users, Jobs CRUD, Contracts + Milestones (fund XDR, milestone approve/submit, dispute, resolve, cancel), Escrow service (Stellar SDK), Prisma schema ✅ | Payments module, Freighter-signed dispute flow |
+| **Frontend** | Marketing landing page, live testnet demo (Friendbot + 1 XLM payment via Horizon), payments UI (mock data) | Marketplace UI, Freighter wallet integration, contract invocation |
+| **CI** | Lint, test (backend 71 tests, Rust 30 tests), WASM build | — |
 
 ### What the demo proves today
 
@@ -142,14 +142,15 @@ The Soroban contract (`stellance/Contracts/src/lib.rs`) implements the full escr
 ### Backend
 - Node.js + NestJS 11
 - Prisma 7 + PostgreSQL
-- `@stellar/stellar-sdk` for Horizon calls and Soroban transaction building (in development)
+- `@stellar/stellar-sdk` 13.x for Horizon calls and Soroban transaction building
+- Modules: Auth, Users, Jobs, Contracts + Milestones, Escrow service
 
 ### Blockchain
 - Stellar network + Horizon API
-- Soroban smart contracts (`stellance/Contracts/`) — `soroban-sdk` 22.x
+- Soroban smart contracts (`stellance/Contracts/`) — `soroban-sdk` 21.x
 
 ### Wallet
-- Freighter browser extension for user-side transaction signing
+- Freighter browser extension for user-side transaction signing (in development)
 
 ---
 
@@ -158,9 +159,9 @@ The Soroban contract (`stellance/Contracts/src/lib.rs`) implements the full escr
 ```
 stellances/
 ├── stellance/
-│   ├── backend/          # NestJS API (auth, users; jobs/contracts/payments in dev)
-│   ├── frontend/         # Next.js app (landing page, testnet demo)
-│   └── Contracts/        # Soroban escrow contract (Rust, soroban-sdk 22.x)
+│   ├── backend/          # NestJS API (auth, users, jobs, contracts, escrow)
+│   ├── frontend/         # Next.js app (landing page, testnet demo, payments UI)
+│   └── Contracts/        # Soroban escrow contract (Rust, soroban-sdk 21.x)
 ├── .github/
 │   ├── workflows/ci.yml  # CI: lint · test · WASM build
 │   └── ISSUE_TEMPLATE/   # Contributor application templates
@@ -235,9 +236,9 @@ Examples: `feat/freighter-integration`, `fix/milestone-release`, `docs/anchor-gu
 
 Active development. Current focus:
 
-- Soroban escrow contract: scaffold complete, testnet deployment next
-- Backend: Jobs, Contracts, Milestones, and Escrow service modules
-- Frontend: Freighter wallet integration, marketplace UI
+- Soroban escrow contract: complete + test-covered; testnet deployment next
+- Backend: Jobs, Contracts, Milestones, and Escrow service modules complete; Payments module in development
+- Frontend: Freighter wallet integration, marketplace UI, contract invocation
 
 ---
 
