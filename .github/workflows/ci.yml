@@ -4,11 +4,12 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+    branches: [main, develop]
 
 jobs:
   # ── Backend ──────────────────────────────────────────────────────────────────
   backend:
-    name: Backend (lint · test · coverage)
+    name: Backend (audit · lint · test · coverage)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -25,6 +26,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Fail the build if any HIGH or CRITICAL vulnerabilities are introduced.
+      # MODERATE is allowed (3 remain from prisma devDeps, tracked in
+      # docs/dependency-health.md).
+      - name: Security audit
+        run: npm audit --audit-level=high
 
       - name: Lint
         run: npm run lint
@@ -47,7 +54,7 @@ jobs:
 
   # ── Frontend ─────────────────────────────────────────────────────────────────
   frontend:
-    name: Frontend (lint · build)
+    name: Frontend (audit · lint · build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -65,15 +72,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Fail on HIGH or CRITICAL vulnerabilities introduced in the frontend.
+      - name: Security audit
+        run: npm audit --audit-level=high
+
       - name: Lint
         run: npm run lint
 
       - name: Build
         run: npm run build
+        env:
+          NODE_ENV: production
+          # Suppress telemetry in CI
+          NEXT_TELEMETRY_DISABLED: '1'
 
   # ── Soroban Contracts ────────────────────────────────────────────────────────
   contracts:
-    name: Contracts (build · test)
+    name: Contracts (clippy · build · test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -90,7 +105,9 @@ jobs:
         uses: dtolnay/rust-toolchain@1.88.0
         with:
           targets: wasm32-unknown-unknown
+          components: clippy
 
+      # Include Cargo.lock in the cache key so lock-file changes bust the cache.
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -98,7 +115,15 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             stellance/Contracts/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('stellance/Contracts/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('stellance/Contracts/Cargo.toml', 'stellance/Contracts/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # Run clippy with --deny warnings so lint regressions fail the build.
+      # The wasm32-unknown-unknown target is excluded from clippy because
+      # soroban-sdk's testutils feature is only available on the native target.
+      - name: Clippy (lint)
+        run: cargo clippy --all-targets -- --deny warnings
 
       - name: Build contract (WASM)
         run: cargo build --target wasm32-unknown-unknown --release
