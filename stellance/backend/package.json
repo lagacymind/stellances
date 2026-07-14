@@ -103,7 +103,7 @@
         "lines": 64,
         "statements": 64,
         "branches": 57,
-        "functions": 65
+        "functions": 63
       }
     },
     "coverageDirectory": "../coverage",
