@@ -134,9 +134,11 @@ describe('UsersService.create', () => {
       role: UserRole.FREELANCER,
     });
 
-    const callArg = prisma.user.create.mock.calls[0][0] as {
-      data: Record<string, unknown>;
-    };
+    const callArg = (
+      prisma.user.create.mock.calls as Array<
+        [{ data: Record<string, unknown> }]
+      >
+    )[0][0];
     // The Prisma column is called 'password', not 'passwordHash'
     expect(callArg.data).toHaveProperty('password', 'hash123');
     expect(callArg.data).not.toHaveProperty('passwordHash');
@@ -150,9 +152,14 @@ describe('UsersService.create', () => {
 describe('UsersService.updateProfile', () => {
   it('updates name when provided', async () => {
     const { prisma, service } = setup();
-    prisma.user.update.mockResolvedValue({ ...baseUser, name: 'Alice Updated' });
+    prisma.user.update.mockResolvedValue({
+      ...baseUser,
+      name: 'Alice Updated',
+    });
 
-    const result = await service.updateProfile(USER_ID, { name: 'Alice Updated' });
+    const result = await service.updateProfile(USER_ID, {
+      name: 'Alice Updated',
+    });
 
     expect(result.name).toBe('Alice Updated');
     expect(prisma.user.update).toHaveBeenCalledWith({
@@ -232,9 +239,11 @@ describe('UsersService.updateProfile', () => {
 
     await service.updateProfile(USER_ID, { stellarPublicKey: STELLAR_KEY });
 
-    const callArg = prisma.user.update.mock.calls[0][0] as {
-      data: Record<string, unknown>;
-    };
+    const callArg = (
+      prisma.user.update.mock.calls as Array<
+        [{ data: Record<string, unknown> }]
+      >
+    )[0][0];
     // name was not provided — must not appear in the update payload
     expect(callArg.data).not.toHaveProperty('name');
     expect(callArg.data).toHaveProperty('stellarPublicKey', STELLAR_KEY);
