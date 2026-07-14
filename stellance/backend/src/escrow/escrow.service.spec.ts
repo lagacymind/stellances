@@ -36,16 +36,10 @@ const mockContract = {
   call: jest.fn(),
 };
 
-const mockTxBuilder = {
-  addOperation: jest.fn(),
-  setTimeout: jest.fn(),
-  build: jest.fn(),
-};
-
 const mockTx = {
   sign: jest.fn(),
   toEnvelope: jest.fn(() => ({
-    toXDR: (_encoding?: string) => 'bW9jay14ZHI=', // base64 for "mock.xdr"
+    toXDR: () => 'bW9jay14ZHI=', // base64 for "mock.xdr"
   })),
 };
 
@@ -165,7 +159,9 @@ beforeEach(() => {
 describe('EscrowService.contractIdToSymbol', () => {
   it('strips all hyphens from a standard UUID', () => {
     const svc = makeService();
-    const result = svc.contractIdToSymbol('550e8400-e29b-41d4-a716-446655440000');
+    const result = svc.contractIdToSymbol(
+      '550e8400-e29b-41d4-a716-446655440000',
+    );
     expect(result).toBe('550e8400e29b41d4a716446655440000');
     expect(result).toHaveLength(32);
     expect(result).not.toContain('-');
@@ -253,7 +249,8 @@ describe('EscrowService.buildFundXdr', () => {
   const fundParams = {
     contractId: '550e8400-e29b-41d4-a716-446655440000',
     clientPublicKey: 'GB3RGQA4VXU6Z2J6FG4DCAIYKHXWTBATR7BUEB7WFXXGPB2KC2FTW2PW',
-    freelancerPublicKey: 'GCUNUKLKYDXS4JPQPQV2USJLYSQAKE4YKUICQLSLDGR6M3IKVSDSV4DQ',
+    freelancerPublicKey:
+      'GCUNUKLKYDXS4JPQPQV2USJLYSQAKE4YKUICQLSLDGR6M3IKVSDSV4DQ',
     adminPublicKey: 'GB2NUEJTGQZJVCJV2AUZSGTJEKUEZ35PJIR67D3CEQDPADIDD7DAWO6Q',
     amountStroops: BigInt(1_000_000_000),
     tokenContractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
@@ -267,7 +264,10 @@ describe('EscrowService.buildFundXdr', () => {
   });
 
   it('throws ServiceUnavailableException when simulation returns an error', async () => {
-    mockRpc.simulateTransaction.mockResolvedValueOnce({ _error: true, error: 'contract revert' });
+    mockRpc.simulateTransaction.mockResolvedValueOnce({
+      _error: true,
+      error: 'contract revert',
+    });
 
     const svc = makeService();
     await expect(svc.buildFundXdr(fundParams)).rejects.toThrow(
@@ -339,17 +339,23 @@ describe('EscrowService.submitReleaseMilestone', () => {
 describe('EscrowService admin helpers', () => {
   it('submitRelease returns tx hash', async () => {
     const svc = makeService();
-    expect(await svc.submitRelease('contract-id-abc')).toBe('mock-tx-hash-abc123');
+    expect(await svc.submitRelease('contract-id-abc')).toBe(
+      'mock-tx-hash-abc123',
+    );
   });
 
   it('submitRefund returns tx hash', async () => {
     const svc = makeService();
-    expect(await svc.submitRefund('contract-id-xyz')).toBe('mock-tx-hash-abc123');
+    expect(await svc.submitRefund('contract-id-xyz')).toBe(
+      'mock-tx-hash-abc123',
+    );
   });
 
   it('submitDispute returns tx hash', async () => {
     const svc = makeService();
-    expect(await svc.submitDispute('contract-id-dispute')).toBe('mock-tx-hash-abc123');
+    expect(await svc.submitDispute('contract-id-dispute')).toBe(
+      'mock-tx-hash-abc123',
+    );
   });
 });
 
@@ -418,12 +424,11 @@ describe('EscrowService constructor', () => {
   });
 
   it('honours explicit STELLAR_HORIZON_URL over derived default', () => {
-    expect(
-      () =>
-        makeService({
-          STELLAR_NETWORK: 'mainnet',
-          STELLAR_HORIZON_URL: 'https://custom-horizon.example.com',
-        }),
+    expect(() =>
+      makeService({
+        STELLAR_NETWORK: 'mainnet',
+        STELLAR_HORIZON_URL: 'https://custom-horizon.example.com',
+      }),
     ).not.toThrow();
   });
 });

@@ -1,7 +1,6 @@
 import type { Response } from 'express';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import type { RegisterDto } from './dto/register.dto';
 
 class MockResponse {
   cookies: Array<{
@@ -78,7 +77,7 @@ describe('AuthController', () => {
     };
 
     const body = await controller.register(
-      { email: 'e', password: 'p', name: 'n' } as RegisterDto,
+      { email: 'e', password: 'p', name: 'n' },
       req as Parameters<typeof controller.register>[1],
       res as unknown as Response,
     );
