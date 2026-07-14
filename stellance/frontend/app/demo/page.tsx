@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import * as StellarSdk from "stellar-sdk";
+import * as StellarSdk from "@stellar/stellar-sdk";
 
 // ---------------------------------------------------------------------------
 // Small copy-to-clipboard button
@@ -123,7 +123,7 @@ export default function DemoPage() {
     setLoading(true);
     setStatus("Building transaction…");
     try {
-      const server = new StellarSdk.Server(
+      const server = new StellarSdk.Horizon.Server(
         "https://horizon-testnet.stellar.org"
       );
       const sourceKeypair = StellarSdk.Keypair.fromSecret(keypair.secret);
