@@ -23,7 +23,10 @@ export class AuthService {
     private prisma: PrismaService,
   ) {}
 
-  async validateUser(email: string, pass: string): Promise<any> {
+  async validateUser(
+    email: string,
+    pass: string,
+  ): Promise<Omit<import('../generated/prisma/client').User, 'password'> | null> {
     const user = await this.usersService.findOneByEmail(email);
     if (user && (await argon2.verify(user.password, pass))) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars

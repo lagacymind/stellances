@@ -1,19 +1,22 @@
-import { ValidationPipe } from '@nestjs/common';
-import type { RequestHandler } from 'express';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+import type { RequestHandler } from 'express';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import { AppModule } from './app.module';
+
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(helmet() as RequestHandler);
   app.use(cookieParser());
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
   app.setGlobalPrefix('api');
   app.enableCors({
-    origin: frontendUrl,
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:3000',
     credentials: true,
   });
   app.useGlobalPipes(
@@ -26,8 +29,11 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Stellance API')
-    .setDescription('API documentation')
+    .setDescription(
+      'Stellar-powered freelance payment marketplace — escrow, jobs, contracts, milestones.',
+    )
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, swaggerDocument);
@@ -38,6 +44,7 @@ async function bootstrap() {
   const port = Number.isNaN(parsedPort) ? 3001 : parsedPort;
 
   await app.listen(port);
-  console.log('server running on port:', port);
+  logger.log(`Server running on http://localhost:${port}`);
+  logger.log(`Swagger docs at http://localhost:${port}/docs`);
 }
 void bootstrap();
