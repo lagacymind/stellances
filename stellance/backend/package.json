@@ -6,7 +6,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "build": "nest build",
+    "build": "tsc -p tsconfig.build.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -34,6 +34,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
     "cookie-parser": "^1.4.7",
+    "helmet": "^8.0.0",
     "install": "^0.13.0",
     "npm": "^11.11.1",
     "passport": "^0.7.0",
@@ -46,7 +47,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
-    "@eslint/js": "^9.18.0",
+    "@eslint/js": "^10.0.1",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
@@ -58,8 +59,9 @@
     "@types/passport-local": "^1.0.38",
     "@types/pg": "^8.18.0",
     "@types/supertest": "^6.0.2",
+    "@typescript/typescript6": "^6.0.2",
     "dotenv": "^17.3.1",
-    "eslint": "^9.18.0",
+    "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
@@ -72,7 +74,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.20.0"
   },
   "jest": {

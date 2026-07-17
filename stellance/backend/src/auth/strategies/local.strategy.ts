@@ -14,11 +14,11 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     password: string,
   ): Promise<Record<string, unknown>> {
     // validateUser returns any (Passport convention); narrow here before returning
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     const user = await this.authService.validateUser(email, password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    return user as Record<string, unknown>;
+    return user;
   }
 }

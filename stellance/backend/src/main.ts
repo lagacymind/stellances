@@ -10,7 +10,6 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(helmet() as RequestHandler);
   app.use(cookieParser());
 

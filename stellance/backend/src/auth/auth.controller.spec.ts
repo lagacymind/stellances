@@ -105,7 +105,7 @@ describe('AuthController', () => {
     };
 
     const body = await controller.refresh(
-      req as Parameters<typeof controller.refresh>[0],
+      req as unknown as Parameters<typeof controller.refresh>[0],
       res as unknown as Response,
     );
 
@@ -133,7 +133,7 @@ describe('AuthController', () => {
     };
 
     const body = await controller.logout(
-      req as Parameters<typeof controller.logout>[0],
+      req as unknown as Parameters<typeof controller.logout>[0],
       res as unknown as Response,
     );
 

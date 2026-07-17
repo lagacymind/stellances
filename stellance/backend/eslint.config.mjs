@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    ignores: ['eslint.config.mjs', 'src/generated/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -29,6 +29,10 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
+      // ESLint 10: new eslint:recommended rules — warn while the team addresses them
+      'no-unassigned-vars': 'warn',
+      'no-useless-assignment': 'warn',
+      'preserve-caught-error': 'warn',
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },

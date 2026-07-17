@@ -40,7 +40,7 @@ describe('AuthService', () => {
         AuthService,
         {
           provide: PrismaService,
-          useValue: prisma as unknown as PrismaService,
+          useValue: prisma,
         },
         { provide: UsersService, useValue: {} },
       ],
