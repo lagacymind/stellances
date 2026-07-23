@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { JobPostForm } from "./JobPostForm";
 
@@ -34,82 +34,82 @@ function decodeJwt(token: string): JwtPayload | null {
   }
 }
 
-function getRole(): { role: string | null; expired: boolean } {
-  if (typeof window === "undefined") return { role: null, expired: false };
+type AccessResult = "ok" | "unauthenticated" | "wrong-role";
+
+/**
+ * Read the JWT from sessionStorage and return the access decision.
+ * Returns "unauthenticated" during SSR (window is undefined).
+ */
+function checkAccess(): AccessResult {
+  if (typeof window === "undefined") return "unauthenticated";
 
   const token = sessionStorage.getItem("access_token");
-  if (!token) return { role: null, expired: false };
+  if (!token) return "unauthenticated";
 
   const payload = decodeJwt(token);
-  if (!payload) return { role: null, expired: false };
+  if (!payload) return "unauthenticated";
 
   const now = Math.floor(Date.now() / 1000);
-  const expired = payload.exp < now;
+  if (payload.exp < now) return "unauthenticated";
 
-  return { role: payload.role, expired };
+  return payload.role === "CLIENT" ? "ok" : "wrong-role";
 }
 
-// ─── Auth gate ────────────────────────────────────────────────────────────────
+// ─── Spinner ──────────────────────────────────────────────────────────────────
 
-type AuthState = "loading" | "ok" | "redirect";
+function Spinner() {
+  return (
+    <div
+      className="flex items-center justify-center min-h-[60vh]"
+      aria-label="Checking access…"
+      aria-busy="true"
+    >
+      <svg
+        className="h-6 w-6 animate-spin text-accent"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        aria-hidden
+      >
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="4"
+        />
+        <path
+          className="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+        />
+      </svg>
+    </div>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function NewJobPage() {
   const router = useRouter();
-  const [authState, setAuthState] = useState<AuthState>("loading");
 
+  // Evaluate access synchronously — sessionStorage is available on the client
+  // immediately after hydration, so no async effect is needed.
+  const access = checkAccess();
+
+  // The effect only handles the navigation side-effect; no setState.
   useEffect(() => {
-    const { role, expired } = getRole();
-
-    if (!role || expired) {
-      // Not logged in or token expired → send to login
+    if (access === "unauthenticated") {
       router.replace("/login");
-      setAuthState("redirect");
-      return;
-    }
-
-    if (role !== "CLIENT") {
-      // Logged in but not a client → redirect to job listings
+    } else if (access === "wrong-role") {
       router.replace("/jobs");
-      setAuthState("redirect");
-      return;
     }
+  }, [access, router]);
 
-    setAuthState("ok");
-  }, [router]);
-
-  // ── Loading splash ──────────────────────────────────────────────────────────
-  if (authState === "loading" || authState === "redirect") {
-    return (
-      <div
-        className="flex items-center justify-center min-h-[60vh]"
-        aria-label="Checking access…"
-        aria-busy="true"
-      >
-        <svg
-          className="h-6 w-6 animate-spin text-accent"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          aria-hidden
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-          />
-        </svg>
-      </div>
-    );
+  // Show spinner while the redirect is in flight
+  if (access !== "ok") {
+    return <Spinner />;
   }
 
   // ── Authenticated CLIENT ────────────────────────────────────────────────────
