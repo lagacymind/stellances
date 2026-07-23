@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import {
+  PostJobButton,
+  PostJobButtonCompact,
+} from "./components/PostJobButton";
 
 export const metadata: Metadata = {
   title: {
@@ -125,6 +129,11 @@ function Sidebar() {
             {item.label}
           </Link>
         ))}
+
+        {/* CLIENT-only: Post a Job CTA */}
+        <div className="pt-2">
+          <PostJobButton />
+        </div>
       </nav>
 
       {/* Footer: wallet / profile placeholder */}
@@ -187,6 +196,8 @@ function TopBar() {
             <span className="hidden sm:inline">{item.label}</span>
           </Link>
         ))}
+        {/* CLIENT-only: Post a Job CTA */}
+        <PostJobButtonCompact />
       </nav>
     </header>
   );
