@@ -97,6 +97,32 @@ async function apiFetch<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    let message = res.statusText || "An unexpected error occurred.";
+    try {
+      const errBody = (await res.json()) as { message?: string | string[] };
+      if (errBody.message) {
+        message = Array.isArray(errBody.message)
+          ? errBody.message.join(", ")
+          : errBody.message;
+      }
+    } catch {
+      // non-JSON error body — use statusText
+    }
+    throw new JobsApiError(res.status, message);
+  }
+
+  return res.json() as Promise<T>;
+}
+
 // ─── Jobs API ─────────────────────────────────────────────────────────────────
 
 /**
@@ -117,6 +143,23 @@ export async function fetchJobs(params?: JobsQueryParams): Promise<Job[]> {
  */
 export async function fetchJob(id: string): Promise<Job> {
   return apiFetch<Job>(`/jobs/${id}`);
+}
+
+// ─── Create job ───────────────────────────────────────────────────────────────
+
+export interface CreateJobPayload {
+  title: string;
+  description: string;
+  budget: number;
+  category: string;
+}
+
+/**
+ * Create a new job via POST /jobs.
+ * Requires a CLIENT role JWT in sessionStorage.
+ */
+export async function createJob(payload: CreateJobPayload): Promise<Job> {
+  return apiPost<Job>("/jobs", payload);
 }
 
 // ─── Client-side derived helpers ──────────────────────────────────────────────
