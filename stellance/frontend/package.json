@@ -12,7 +12,7 @@
     "@hookform/resolvers": "^3.10.0",
     "@stellar/stellar-sdk": "13.3.0",
     "@tanstack/react-query": "^5.101.2",
-    "next": "16.2.10",
+    "next": "16.2.11",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.56.4",
@@ -26,8 +26,12 @@
     "@types/react-dom": "^19",
     "@typescript/typescript6": "^6.0.2",
     "eslint": "^10.7.0",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.2.11",
     "tailwindcss": "^4",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "postcss": "^8.5.12",
+    "sharp": "^0.35.0"
   }
 }
